@@ -4,3 +4,5 @@
  * Reads state, dispatches actions. Contains zero combat or
  * progression math. All rules live in src/core.
  */
+
+export * from './gameStore.js';
