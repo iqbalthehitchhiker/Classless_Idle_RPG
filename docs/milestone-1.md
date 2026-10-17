@@ -21,7 +21,7 @@ Scope reference: SRS section 6, Phase 1. Decisions: `docs/decisions.md`.
 - [x] **M1-08 Effect system.** Timed effects with duration, tick interval, stacking rule. Implement Burn (player skill, auto-applied on hit) and Stun (boss). Tests: refresh behavior, expiry, stun blocks attacks.
 - [x] **M1-09 Boss + stage unlock.** Boss wave, first-kill unlock is idempotent, farming loop and `autoProgress` per D2.
 - [x] **M1-10 Defeat handling.** Per D1. Tests: retreat from wave 1 stays on wave 1; pause blocks combat; full heal.
-- [ ] **M1-11 Rewards.** XP per enemy, boss bonus XP, results log capped at N entries (NFR-009).
+- [x] **M1-11 Rewards.** XP per enemy, boss bonus XP, results log capped at N entries (NFR-009).
 
 ### Activities and persistence
 - [ ] **M1-12 Activity framework.** `Activity` interface (`id`, `requirements`, `advance`, outputs). Combat is the first implementation. `dispatch({type:'startActivity'|'stopActivity'}, config)`. Single active activity.
