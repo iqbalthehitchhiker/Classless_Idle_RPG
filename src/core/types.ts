@@ -69,7 +69,7 @@ export type CombatPhase =
   | { readonly type: 'recovering'; readonly remainingMs: number }
   | { readonly type: 'complete' };                              // unused in Phase 1
 
-/** Maximum entries kept in the combat log (NFR-009). */
+/** Maximum entries kept in the event log (NFR-009). */
 export const MAX_LOG_ENTRIES = 50;
 
 export interface CombatState {
@@ -80,7 +80,26 @@ export interface CombatState {
   readonly playerHp: number;
   readonly playerEffects: readonly EffectInstance[]; // Active effects on player
   readonly phase: CombatPhase;
-  readonly log: readonly string[];          // newest entries appended, capped at MAX_LOG_ENTRIES
+}
+
+// ---------------------------------------------------------------------------
+// Event log
+// ---------------------------------------------------------------------------
+
+export type LogEventType =
+  | 'enemyKilled'
+  | 'waveCleared'
+  | 'bossSpawned'
+  | 'bossKilled'
+  | 'stageUnlocked'
+  | 'levelUp'
+  | 'playerDefeated'
+  | 'recoveryEnded';
+
+export interface LogEntry {
+  readonly tMs: number;        // game clock time in integer milliseconds
+  readonly type: LogEventType;
+  readonly detail: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +121,8 @@ export interface GameState {
   };
   readonly savedAt: number | null;    // Unix ms timestamp, written by persistence layer
   readonly remainderMs: number;       // integer, 0–99, sub-step carry for advance()
+  readonly elapsedMs: number;         // game clock in integer milliseconds, advanced by advance()
+  readonly log: readonly LogEntry[];  // newest entries appended, capped at MAX_LOG_ENTRIES
 }
 
 // ---------------------------------------------------------------------------

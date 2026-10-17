@@ -928,7 +928,6 @@ describe('Combat Engine (M1-07)', () => {
               effects: [],
             },
           ],
-          log: ['Hero engaged Stage 1', 'Hero attacked Slime for 10 damage'],
         },
       };
 
@@ -1361,7 +1360,6 @@ describe('Fix 3: Coverage for startCombat and error paths', () => {
         playerHp: 100,
         playerEffects: [],
         phase: { type: 'active' },
-        log: [],
       },
     };
     // Use a hack to simulate training activity

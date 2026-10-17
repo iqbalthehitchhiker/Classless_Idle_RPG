@@ -10,6 +10,7 @@
  * No Math.random(), Date.now(), localStorage, or DOM access here.
  */
 import type { LevelCurveConfig } from '../data/levelCurve.js';
+import { appendLog } from './log.js';
 import { add, mul, pow, round, sub } from './num.js';
 import type { CharacterState, GameState } from './types.js';
 
@@ -110,10 +111,22 @@ export function awardXp(
     if (updatedCharacter === target.character) {
       return target;
     }
-    return {
+    let nextState: GameState = {
       ...target,
       character: updatedCharacter,
     };
+
+    let loggedLevel = target.character.level;
+    while (loggedLevel < updatedCharacter.level) {
+      loggedLevel = add(loggedLevel, 1);
+      nextState = appendLog(nextState, {
+        tMs: nextState.elapsedMs,
+        type: 'levelUp',
+        detail: `Level up -> ${loggedLevel}`,
+      });
+    }
+
+    return nextState;
   }
 
   return awardCharacterXp(target, xpAmount, config);

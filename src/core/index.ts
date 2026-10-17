@@ -12,6 +12,7 @@ export * from './num.js';
 export * from './rng.js';
 export * from './types.js';
 export { createInitialState, advance, dispatch, STEP_MS, MAX_STEPS } from './engine.js';
+export { appendLog } from './log.js';
 export { deriveStats, deriveStatsForLevel } from './stats.js';
 export type { DerivedStats } from './stats.js';
 export { awardXp, awardCharacterXp, xpToNextLevel } from './level.js';

@@ -18,6 +18,7 @@
  */
 import type { Content } from '../../data/index.js';
 import { awardXp } from '../level.js';
+import { appendLog } from '../log.js';
 import { add, clamp, div, mul, round, sub } from '../num.js';
 import { nextBool } from '../rng.js';
 import { deriveStats } from '../stats.js';
@@ -101,7 +102,6 @@ export function startCombat(
     playerHp,
     playerEffects: [],
     phase: { type: 'active' },
-    log: [],
   };
 
   return {
@@ -144,12 +144,18 @@ function handleWaveClear(
 
   if (!isBossKill) {
     // Regular wave cleared
+    let updatedState = appendLog(state, {
+      tMs: state.elapsedMs,
+      type: 'waveCleared',
+      detail: `Wave ${waveIndex + 1} cleared`,
+    });
+
     const nextWaveIndex = add(waveIndex, 1);
     if (nextWaveIndex < stage.waves.length) {
       // Spawn next regular wave
       const nextEnemies = spawnWaveEnemies(stage.waves[nextWaveIndex], config.content);
       return {
-        ...state,
+        ...updatedState,
         combat: {
           ...combat,
           waveIndex: nextWaveIndex,
@@ -158,7 +164,7 @@ function handleWaveClear(
           phase: { type: 'active' },
         },
         character: {
-          ...state.character,
+          ...updatedState.character,
           currentHp: maxHp,
         },
       };
@@ -167,7 +173,7 @@ function handleWaveClear(
       const bossEnemy = config.content.enemies.get(stage.boss);
       if (!bossEnemy) {
         // Missing boss definition: stay on cleared wave
-        return state;
+        return updatedState;
       }
       const bossEnemyState: EnemyState = {
         defId: bossEnemy.id,
@@ -176,8 +182,13 @@ function handleWaveClear(
         attackTimerMs: 0,
         effects: [],
       };
+      updatedState = appendLog(updatedState, {
+        tMs: updatedState.elapsedMs,
+        type: 'bossSpawned',
+        detail: `Boss spawned: ${bossEnemy.name}`,
+      });
       return {
-        ...state,
+        ...updatedState,
         combat: {
           ...combat,
           enemies: [bossEnemyState],
@@ -185,21 +196,35 @@ function handleWaveClear(
           phase: { type: 'boss' },
         },
         character: {
-          ...state.character,
+          ...updatedState.character,
           currentHp: maxHp,
         },
       };
     }
   } else {
-    // Boss kill: award bonus XP (D17), unlock stage (idempotent), add to clearedStages, then reset or auto-progress
-    let updatedState = awardXp(state, stage.bossXpBonus, config.levelCurve);
-    
+    // Boss kill: log reward, award bonus XP (D17), unlock stage (idempotent),
+    // add to clearedStages, then reset or auto-progress.
+    const bossDef = config.content.enemies.get(stage.boss);
+    const totalBossXp = add(bossDef ? bossDef.xpReward : 0, stage.bossXpBonus);
+
+    let updatedState = appendLog(state, {
+      tMs: state.elapsedMs,
+      type: 'bossKilled',
+      detail: `Boss killed: ${bossDef?.name ?? stage.boss} (+${totalBossXp} XP)`,
+    });
+    updatedState = awardXp(updatedState, stage.bossXpBonus, config.levelCurve);
+
     // Unlock next stage if present (idempotent)
     if (stage.unlocksStageId && !updatedState.unlockedStages.includes(stage.unlocksStageId)) {
       updatedState = {
         ...updatedState,
         unlockedStages: [...updatedState.unlockedStages, stage.unlocksStageId],
       };
+      updatedState = appendLog(updatedState, {
+        tMs: updatedState.elapsedMs,
+        type: 'stageUnlocked',
+        detail: `Stage unlocked: ${stage.unlocksStageId}`,
+      });
     }
 
     // Add to clearedStages (idempotent, no duplicates)
@@ -278,8 +303,13 @@ export function stepCombat(
     
     if (newRemainingMs === 0) {
       // Recovery complete, return to active with fresh attack timers
+      const recovered = appendLog(state, {
+        tMs: state.elapsedMs,
+        type: 'recoveryEnded',
+        detail: 'Recovery complete',
+      });
       return {
-        ...state,
+        ...recovered,
         combat: {
           ...combat,
           playerAttackTimerMs: 0,
@@ -333,6 +363,13 @@ export function stepCombat(
       // Enemy killed by DoT!
       const enemyDef = contentInstance.enemies.get(enemy.defId);
       if (enemyDef) {
+        if (!enemyDef.isBoss) {
+          currentState = appendLog(currentState, {
+            tMs: currentState.elapsedMs,
+            type: 'enemyKilled',
+            detail: `${enemyDef.name} killed (+${enemyDef.xpReward} XP)`,
+          });
+        }
         currentState = awardXp(currentState, enemyDef.xpReward, config.levelCurve);
       }
       // Dead enemy removed (effects vanish with it)
@@ -413,6 +450,13 @@ export function stepCombat(
         // Enemy killed!
         const enemyDef = contentInstance.enemies.get(target.defId);
         if (enemyDef) {
+          if (!enemyDef.isBoss) {
+            currentState = appendLog(currentState, {
+              tMs: currentState.elapsedMs,
+              type: 'enemyKilled',
+              detail: `${enemyDef.name} killed (+${enemyDef.xpReward} XP)`,
+            });
+          }
           currentState = awardXp(currentState, enemyDef.xpReward, config.levelCurve);
         }
         // Remove dead enemy
@@ -525,7 +569,6 @@ export function stepCombat(
     playerHp,
     playerEffects,
     phase,
-    log: combat.log,
   };
 
   const resultState: GameState = {
@@ -581,8 +624,14 @@ function handleDefeat(state: GameState, config: GameConfig): GameState {
   // Enter recovery phase
   const pauseMs = round(mul(defeatConfig.pauseSeconds, 1000));
 
+  const defeated = appendLog(state, {
+    tMs: state.elapsedMs,
+    type: 'playerDefeated',
+    detail: `Player defeated, retreating to wave ${retreatWave + 1}`,
+  });
+
   return {
-    ...state,
+    ...defeated,
     combat: {
       ...combat,
       waveIndex: retreatWave,
@@ -593,7 +642,7 @@ function handleDefeat(state: GameState, config: GameConfig): GameState {
       phase: { type: 'recovering', remainingMs: pauseMs },
     },
     character: {
-      ...state.character,
+      ...defeated.character,
       currentHp: maxHp,
     },
   };

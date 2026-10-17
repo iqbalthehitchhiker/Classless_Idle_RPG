@@ -54,6 +54,8 @@ export function createInitialState(
     },
     savedAt: null,
     remainderMs: 0,
+    elapsedMs: 0,
+    log: [],
   } satisfies GameState;
 }
 
@@ -65,10 +67,12 @@ export function createInitialState(
  * Advance game logic by exactly STEP_MS milliseconds.
  */
 function tick(state: GameState, stepSeconds: number, config: GameConfig): GameState {
-  if (state.activeActivity === 'combat' && state.combat !== null) {
-    return stepCombat(state, stepSeconds, config);
+  // Integer-ms clock bookkeeping lives in the step runner (hard rule 9).
+  const stepped: GameState = { ...state, elapsedMs: state.elapsedMs + STEP_MS };
+  if (stepped.activeActivity === 'combat' && stepped.combat !== null) {
+    return stepCombat(stepped, stepSeconds, config);
   }
-  return state;
+  return stepped;
 }
 
 // ---------------------------------------------------------------------------

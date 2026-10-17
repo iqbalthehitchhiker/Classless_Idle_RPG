@@ -144,7 +144,6 @@ function startAtBoss(
       playerHp: maxHp,
       playerEffects: [],
       phase: { type: 'boss' },
-      log: [],
     },
   };
 }
