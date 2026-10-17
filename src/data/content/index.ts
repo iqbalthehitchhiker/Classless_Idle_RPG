@@ -20,6 +20,10 @@ export const starterContent: RawContent = {
   stages: starterStages,
   playerBaseOnHitEffects: ['burn'],
   startingStageId: 'stage-1',
+  defeat: {
+    retreatWaves: 1,
+    pauseSeconds: 3,
+  },
 };
 
 /** Authoritative, pre-validated content instance for gameplay and testing. */

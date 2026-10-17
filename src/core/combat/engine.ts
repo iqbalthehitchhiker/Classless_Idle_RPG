@@ -100,7 +100,6 @@ export function startCombat(
     playerAttackTimerMs: 0,
     playerHp,
     playerEffects: [],
-    playerDefeated: false,
     phase: { type: 'active' },
     log: [],
   };
@@ -272,28 +271,36 @@ export function stepCombat(
   const combat = state.combat;
   const contentInstance = config.content;
 
-  // If already defeated, do not process combat
-  if (combat.playerDefeated) {
-    return state;
+  // Handle recovery phase (D1)
+  if (combat.phase.type === 'recovering') {
+    const dtMs = round(mul(dt, 1000));
+    const newRemainingMs = Math.max(0, combat.phase.remainingMs - dtMs);
+    
+    if (newRemainingMs === 0) {
+      // Recovery complete, return to active with fresh attack timers
+      return {
+        ...state,
+        combat: {
+          ...combat,
+          playerAttackTimerMs: 0,
+          phase: { type: 'active' },
+        },
+      };
+    } else {
+      // Still recovering
+      return {
+        ...state,
+        combat: {
+          ...combat,
+          phase: { type: 'recovering', remainingMs: newRemainingMs },
+        },
+      };
+    }
   }
 
-  // If player HP is already 0, ensure defeated flag is set
+  // If player HP is already 0, trigger defeat
   if (combat.playerHp <= 0) {
-    const updatedState: GameState = {
-      ...state,
-      combat: {
-        ...combat,
-        playerHp: 0,
-        playerEffects: [],
-        playerDefeated: true,
-        phase: { type: 'playerDefeated' },
-      },
-      character: {
-        ...state.character,
-        currentHp: 0,
-      },
-    };
-    return updatedState;
+    return handleDefeat(state, config);
   }
 
   const dtMs = round(mul(dt, 1000));
@@ -303,7 +310,6 @@ export function stepCombat(
   let playerHp = combat.playerHp;
   let playerEffects = combat.playerEffects ?? [];
   let waveIndex = combat.waveIndex;
-  let playerDefeated: boolean = false;
   let phase: CombatPhase = combat.phase;
   const hadEnemiesAtStart = currentEnemies.length > 0;
   let isBossPhase = phase.type === 'boss';
@@ -373,103 +379,93 @@ export function stepCombat(
   }
 
   // -------------------------------------------------------------------------
-  // 1. Player Attack Cycle (if not stunned or defeated)
+  // 1. Player Attack Cycle (if not stunned)
   // -------------------------------------------------------------------------
   let playerTimerMs = combat.playerAttackTimerMs;
 
-  if (!playerDefeated) {
-    const playerStunned = playerStunnedAtStart || isStunned(playerEffects, contentInstance);
+  const playerStunned = playerStunnedAtStart || isStunned(playerEffects, contentInstance);
 
-    if (!playerStunned) {
-      let playerStats = deriveStats(currentState, config);
-      let playerAttackIntervalMs = round(div(1000, playerStats.attackRate));
-      playerTimerMs = add(playerTimerMs, dtMs);
+  if (!playerStunned) {
+    let playerStats = deriveStats(currentState, config);
+    let playerAttackIntervalMs = round(div(1000, playerStats.attackRate));
+    playerTimerMs = add(playerTimerMs, dtMs);
 
-      while (playerTimerMs >= playerAttackIntervalMs && currentEnemiesWorking.length > 0) {
-        playerTimerMs = sub(playerTimerMs, playerAttackIntervalMs);
+    while (playerTimerMs >= playerAttackIntervalMs && currentEnemiesWorking.length > 0) {
+      playerTimerMs = sub(playerTimerMs, playerAttackIntervalMs);
 
-        // Derive stats from latest currentState (recalculated in case mid-step kill leveled up player, per D15)
-        playerStats = deriveStats(currentState, config);
-        playerAttackIntervalMs = round(div(1000, playerStats.attackRate));
+      // Derive stats from latest currentState (recalculated in case mid-step kill leveled up player, per D15)
+      playerStats = deriveStats(currentState, config);
+      playerAttackIntervalMs = round(div(1000, playerStats.attackRate));
 
-        // Roll for crit using seeded RNG
-        const [isCrit, nextRng] = nextBool(currentRng, playerStats.critChance);
-        currentRng = nextRng;
+      // Roll for crit using seeded RNG
+      const [isCrit, nextRng] = nextBool(currentRng, playerStats.critChance);
+      currentRng = nextRng;
 
-        const damage = isCrit
-          ? mul(playerStats.attack, playerStats.critDamage)
-          : playerStats.attack;
+      const damage = isCrit
+        ? mul(playerStats.attack, playerStats.critDamage)
+        : playerStats.attack;
 
-        // Hits the first living enemy
-        const target = currentEnemiesWorking[0];
-        const newEnemyHp = clamp(sub(target.hp, damage), 0, target.maxHp);
+      // Hits the first living enemy
+      const target = currentEnemiesWorking[0];
+      const newEnemyHp = clamp(sub(target.hp, damage), 0, target.maxHp);
 
-        if (newEnemyHp <= 0) {
-          // Enemy killed!
-          const enemyDef = contentInstance.enemies.get(target.defId);
-          if (enemyDef) {
-            currentState = awardXp(currentState, enemyDef.xpReward, config.levelCurve);
-          }
-          // Remove dead enemy
-          currentEnemiesWorking = currentEnemiesWorking.slice(1);
-        } else {
-          // Enemy survives hit: apply player's on-hit effects
-          let updatedEffects = target.effects;
-          const playerOnHit = deriveOnHitEffects(currentState, contentInstance);
-          for (const effectId of playerOnHit) {
-            const effectDef = contentInstance.effects.get(effectId);
-            if (effectDef) {
-              updatedEffects = applyEffectToInstances(updatedEffects, effectDef);
-            }
-          }
-
-          const updatedTarget: EnemyWorkingRecord = {
-            ...target,
-            hp: newEnemyHp,
-            effects: updatedEffects,
-          };
-          currentEnemiesWorking[0] = updatedTarget;
+      if (newEnemyHp <= 0) {
+        // Enemy killed!
+        const enemyDef = contentInstance.enemies.get(target.defId);
+        if (enemyDef) {
+          currentState = awardXp(currentState, enemyDef.xpReward, config.levelCurve);
         }
-      }
-
-      // Check wave advancement after player attacks
-      if (currentEnemiesWorking.length === 0 && hadEnemiesAtStart) {
-        // D14: Tie - player survives
-        if (playerLethalDoT) {
-          playerLethalDoT = false; // Cancel defeat
+        // Remove dead enemy
+        currentEnemiesWorking = currentEnemiesWorking.slice(1);
+      } else {
+        // Enemy survives hit: apply player's on-hit effects
+        let updatedEffects = target.effects;
+        const playerOnHit = deriveOnHitEffects(currentState, contentInstance);
+        for (const effectId of playerOnHit) {
+          const effectDef = contentInstance.effects.get(effectId);
+          if (effectDef) {
+            updatedEffects = applyEffectToInstances(updatedEffects, effectDef);
+          }
         }
-        
-        currentState = handleWaveClear(currentState, waveIndex, isBossPhase, config);
-        currentEnemiesWorking = (currentState.combat!.enemies as EnemyState[]).map((e) => ({ ...e, stunnedAtStart: false }));
-        waveIndex = currentState.combat!.waveIndex;
-        phase = currentState.combat!.phase;
-        isBossPhase = phase.type === 'boss';
-        playerHp = currentState.combat!.playerHp; // D18: HP fully restored
+
+        const updatedTarget: EnemyWorkingRecord = {
+          ...target,
+          hp: newEnemyHp,
+          effects: updatedEffects,
+        };
+        currentEnemiesWorking[0] = updatedTarget;
       }
     }
-    // If playerStunned: playerTimerMs is NOT advanced, attacks cannot fire
-  }
 
-  // If player took lethal DoT and no tie occurred, defeat the player
+    // Check wave advancement after player attacks
+    if (currentEnemiesWorking.length === 0 && hadEnemiesAtStart) {
+      // D14: Tie - player survives
+      if (playerLethalDoT) {
+        playerLethalDoT = false; // Cancel defeat
+      }
+      
+      currentState = handleWaveClear(currentState, waveIndex, isBossPhase, config);
+      currentEnemiesWorking = (currentState.combat!.enemies as EnemyState[]).map((e) => ({ ...e, stunnedAtStart: false }));
+      waveIndex = currentState.combat!.waveIndex;
+      phase = currentState.combat!.phase;
+      isBossPhase = phase.type === 'boss';
+      playerHp = currentState.combat!.playerHp; // D18: HP fully restored
+    }
+  }
+  // If playerStunned: playerTimerMs is NOT advanced, attacks cannot fire
+
+  // If player took lethal DoT and no tie occurred, trigger defeat
   if (playerLethalDoT) {
-    playerHp = 0;
-    playerDefeated = true;
-    playerEffects = [];
-    phase = { type: 'playerDefeated' };
+    return handleDefeat(currentState, config);
   }
 
   // -------------------------------------------------------------------------
   // 2. Enemy Attack Cycle (if player still alive)
   // -------------------------------------------------------------------------
-  if (!playerDefeated && currentEnemiesWorking.length > 0) {
+  if (currentEnemiesWorking.length > 0) {
     const updatedEnemies: EnemyWorkingRecord[] = [];
 
     for (const enemy of currentEnemiesWorking) {
-      if (playerDefeated) {
-        updatedEnemies.push(enemy);
-        continue;
-      }
-
       const enemyDef = contentInstance.enemies.get(enemy.defId);
       if (!enemyDef) {
         updatedEnemies.push(enemy);
@@ -499,11 +495,8 @@ export function stepCombat(
           }
 
           if (playerHp <= 0) {
-            playerHp = 0;
-            playerDefeated = true;
-            playerEffects = []; // Clear effects on defeat
-            phase = { type: 'playerDefeated' };
-            break;
+            // Player defeated
+            return handleDefeat(currentState, config);
           }
         }
       }
@@ -531,7 +524,6 @@ export function stepCombat(
     playerAttackTimerMs: playerTimerMs,
     playerHp,
     playerEffects,
-    playerDefeated,
     phase,
     log: combat.log,
   };
@@ -547,4 +539,62 @@ export function stepCombat(
   };
 
   return resultState;
+}
+
+// ---------------------------------------------------------------------------
+// Defeat Handler (D1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Handles player defeat per D1:
+ * - Retreat one wave (min wave 0), or from boss to last regular wave
+ * - Spawn fresh enemies for the retreat wave
+ * - Full heal to derived maxHp
+ * - Clear player effects
+ * - Enter recovery phase for pauseSeconds
+ */
+function handleDefeat(state: GameState, config: GameConfig): GameState {
+  const combat = state.combat;
+  if (!combat) return state;
+
+  const stage = config.content.stages.get(combat.stageId);
+  if (!stage) return state;
+
+  const defeatConfig = config.content.defeat;
+  
+  // Determine retreat wave
+  let retreatWave: number;
+  if (combat.phase.type === 'boss') {
+    // Boss defeat -> retreat to last regular wave
+    retreatWave = stage.waves.length - 1;
+  } else {
+    // Regular wave -> retreat by retreatWaves, min 0
+    retreatWave = Math.max(0, combat.waveIndex - defeatConfig.retreatWaves);
+  }
+
+  // Spawn fresh enemies for the retreat wave
+  const freshEnemies = spawnWaveEnemies(stage.waves[retreatWave], config.content);
+
+  // Full heal to derived maxHp
+  const maxHp = deriveStats(state, config).maxHp;
+
+  // Enter recovery phase
+  const pauseMs = round(mul(defeatConfig.pauseSeconds, 1000));
+
+  return {
+    ...state,
+    combat: {
+      ...combat,
+      waveIndex: retreatWave,
+      enemies: freshEnemies,
+      playerHp: maxHp,
+      playerEffects: [],
+      playerAttackTimerMs: 0,
+      phase: { type: 'recovering', remainingMs: pauseMs },
+    },
+    character: {
+      ...state.character,
+      currentHp: maxHp,
+    },
+  };
 }

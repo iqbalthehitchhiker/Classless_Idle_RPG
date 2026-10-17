@@ -39,6 +39,7 @@ function makeCustomContent(overrides: {
     stages,
     playerBaseOnHitEffects: defaultContent.playerBaseOnHitEffects,
     startingStageId: defaultContent.startingStageId,
+    defeat: defaultContent.defeat,
     raw: defaultContent.raw,
   };
 }
@@ -89,6 +90,10 @@ function makeTinyContent(options: {
     stages: [stage, ...(options.extraStages ?? [])],
     playerBaseOnHitEffects: options.playerOnHitEffects ?? [],
     startingStageId: stageId,
+    defeat: {
+      retreatWaves: 1,
+      pauseSeconds: 3,
+    },
   });
 }
 
@@ -138,7 +143,6 @@ function startAtBoss(
       playerAttackTimerMs: 0,
       playerHp: maxHp,
       playerEffects: [],
-      playerDefeated: false,
       phase: { type: 'boss' },
       log: [],
     },
@@ -698,7 +702,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       const prevPhase = phaseOf(state);
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
       
-      if (state.combat!.playerDefeated) {
+      if (state.combat!.phase.type === 'recovering') {
         throw new Error('Player was defeated during boss fight');
       }
       
@@ -768,7 +772,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       const prevPhase = phaseOf(state);
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
       
-      if (state.combat!.playerDefeated) {
+      if (state.combat!.phase.type === 'recovering') {
         throw new Error(`Player defeated during levelup test at step ${i}`);
       }
       
@@ -838,10 +842,13 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
 
     state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-    // Player defeated (no tie)
-    expect(state.combat!.playerHp).toBe(0);
-    expect(state.combat!.playerDefeated).toBe(true);
-    expect(state.combat!.phase.type).toBe('playerDefeated');
+    // Player defeated (no tie): retreat to last regular wave, heal, enter recovery
+    const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+    expect(state.combat!.playerHp).toBe(maxHp);
+    expect(state.combat!.phase.type).toBe('recovering');
+    // Boss defeat should retreat to the last regular wave (wave index = stage.waves.length - 1)
+    const stageFromContent = customContent.stages.get('no-tie-stage');
+    expect(state.combat!.waveIndex).toBe(stageFromContent!.waves.length - 1);
   });
 
   // -------------------------------------------------------------------------

@@ -43,6 +43,7 @@ function makeCustomContent(overrides: {
     stages,
     playerBaseOnHitEffects: defaultContent.playerBaseOnHitEffects,
     startingStageId: defaultContent.startingStageId,
+    defeat: defaultContent.defeat,
     raw: defaultContent.raw,
   };
 }
@@ -340,7 +341,7 @@ describe('Combat Engine (M1-07)', () => {
   // -------------------------------------------------------------------------
   // 6. Player Defeat
   // -------------------------------------------------------------------------
-  it('sets playerDefeated when HP reaches 0 and stops further combat', () => {
+  it('triggers defeat handling (retreat + recovery) when HP reaches 0', () => {
     // Enemy that deals fatal damage in 1 attack
     const lethalEnemy: EnemyDef = {
       id: 'reaper',
@@ -371,21 +372,24 @@ describe('Combat Engine (M1-07)', () => {
     state = startCombat(state, 'lethal-stage', { ...defaultConfig, content: customContent });
 
     expect(state.combat!.playerHp).toBe(100);
-    expect(state.combat!.playerDefeated).toBe(false);
+    expect(state.combat!.phase.type).toBe('active');
 
     // 5 steps (0.5 s): reaper attacks and deals 150 damage
     for (let i = 0; i < 5; i++) {
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
-    expect(state.combat!.playerHp).toBe(0);
-    expect(state.character.currentHp).toBe(0);
-    expect(state.combat!.playerDefeated).toBe(true);
-    expect(state.combat!.phase.type).toBe('playerDefeated');
+    // Player defeated: retreat to wave 0 (min), full heal, recovery phase
+    const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+    expect(state.combat!.playerHp).toBe(maxHp);
+    expect(state.character.currentHp).toBe(maxHp);
+    expect(state.combat!.phase.type).toBe('recovering');
+    expect(state.combat!.waveIndex).toBe(0);
+    expect(state.combat!.playerEffects).toEqual([]);
 
-    // Subsequent combat steps are halted
-    const after = stepCombat(state, 0.5, { ...defaultConfig, content: customContent });
-    expect(after).toEqual(state);
+    // During recovery, combat does not advance
+    const duringRecovery = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
+    expect(duringRecovery.combat!.phase.type).toBe('recovering');
   });
 
   // -------------------------------------------------------------------------
@@ -590,7 +594,6 @@ describe('Combat Engine (M1-07)', () => {
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
         // D14 + D18: Player wins tie, not defeated; wave cleared and boss spawned; HP fully restored to maxHp
-        expect(state.combat!.playerDefeated).toBe(false);
         expect(state.combat!.phase.type).toBe('boss');
         const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
         expect(state.combat!.playerHp).toBe(maxHp);
@@ -656,7 +659,6 @@ describe('Combat Engine (M1-07)', () => {
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
         // D14 + D18: Player wins tie, not defeated; boss spawned; HP fully restored to maxHp
-        expect(state.combat!.playerDefeated).toBe(false);
         expect(state.combat!.phase.type).toBe('boss');
         const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
         expect(state.combat!.playerHp).toBe(maxHp);
@@ -1004,7 +1006,7 @@ describe('Combat Engine (M1-07)', () => {
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
         // D14 + D18: Player wins tie, not defeated; wave advanced, HP restored to maxHp
-        expect(state.combat!.playerDefeated).toBe(false);
+        expect(state.combat!.phase.type).not.toBe('recovering');
         // Wave advanced to wave 1 (next wave spawned)
         expect(state.combat!.waveIndex).toBe(1);
         expect(state.combat!.enemies.length).toBe(1);
@@ -1074,7 +1076,7 @@ describe('Combat Engine (M1-07)', () => {
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
         // D14 + D18: Player wins tie, not defeated; wave advanced, HP restored to maxHp
-        expect(state.combat!.playerDefeated).toBe(false);
+        expect(state.combat!.phase.type).not.toBe('recovering');
         // Wave advanced to wave 1
         expect(state.combat!.waveIndex).toBe(1);
         expect(state.combat!.enemies.length).toBe(1);
@@ -1146,7 +1148,7 @@ describe('Combat Engine (M1-07)', () => {
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
         // Regression: D14 + D18 work on final wave; boss spawned, HP at maxHp
-        expect(state.combat!.playerDefeated).toBe(false);
+        expect(state.combat!.phase.type).not.toBe('recovering');
         expect(state.combat!.phase.type).toBe('boss');
         const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
         expect(state.combat!.playerHp).toBe(maxHp);
@@ -1209,7 +1211,7 @@ describe('Combat Engine (M1-07)', () => {
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
         // Regression: D14 + D18 work on final wave with attack; boss spawned, HP at maxHp
-        expect(state.combat!.playerDefeated).toBe(false);
+        expect(state.combat!.phase.type).not.toBe('recovering');
         expect(state.combat!.phase.type).toBe('boss');
         const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
         expect(state.combat!.playerHp).toBe(maxHp);
@@ -1265,10 +1267,11 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // No tie: player is defeated
-        expect(state.combat!.playerHp).toBe(0);
-        expect(state.combat!.playerDefeated).toBe(true);
-        expect(state.combat!.enemies.length).toBe(2);
+        // No tie: player is defeated (retreats to wave 0, heals, enters recovery)
+        const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+        expect(state.combat!.playerHp).toBe(maxHp);
+        expect(state.combat!.phase.type).toBe('recovering');
+        expect(state.combat!.waveIndex).toBe(0);
       });
     });
   });
@@ -1357,7 +1360,6 @@ describe('Fix 3: Coverage for startCombat and error paths', () => {
         playerAttackTimerMs: 0,
         playerHp: 100,
         playerEffects: [],
-        playerDefeated: false,
         phase: { type: 'active' },
         log: [],
       },
@@ -1423,23 +1425,23 @@ describe('Fix 3: Coverage for startCombat and error paths', () => {
   it('stepCombat repairs playerHp <= 0 to defeated state', () => {
     let state = createInitialState(1, defaultConfig);
     state = startCombat(state, 'stage-1', defaultConfig);
-    // Manually set playerHp to 0 without defeated flag
+    // Manually set playerHp to 0
     state = {
       ...state,
       combat: {
         ...state.combat!,
         playerHp: 0,
-        playerDefeated: false,
       },
     };
 
     const result = stepCombat(state, 0.1, defaultConfig);
 
-    expect(result.combat!.playerHp).toBe(0);
-    expect(result.combat!.playerDefeated).toBe(true);
-    expect(result.combat!.phase.type).toBe('playerDefeated');
+    // Should trigger defeat handling: retreat, heal, recovery
+    const maxHp = deriveStatsForLevel(result.character.level, defaultConfig.character).maxHp;
+    expect(result.combat!.playerHp).toBe(maxHp);
+    expect(result.combat!.phase.type).toBe('recovering');
     expect(result.combat!.playerEffects).toEqual([]);
-    expect(result.character.currentHp).toBe(0);
+    expect(result.character.currentHp).toBe(maxHp);
   });
 
   it('player dying mid enemy-loop stops further enemy attacks', () => {
@@ -1493,11 +1495,10 @@ describe('Fix 3: Coverage for startCombat and error paths', () => {
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
-    // Player should be dead
-    expect(state.combat!.playerDefeated).toBe(true);
-    expect(state.combat!.playerHp).toBe(0);
-
-    // All three enemies should still be alive (loop stopped after first enemy killed player)
-    expect(state.combat!.enemies.length).toBe(3);
+    // Player should be defeated: retreat to wave 0, heal, enter recovery
+    const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+    expect(state.combat!.phase.type).toBe('recovering');
+    expect(state.combat!.playerHp).toBe(maxHp);
+    expect(state.combat!.waveIndex).toBe(0);
   });
 });

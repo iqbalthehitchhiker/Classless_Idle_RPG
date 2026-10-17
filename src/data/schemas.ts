@@ -98,6 +98,13 @@ export const stageDefSchema = z
 // 5. Raw Content Schema & Inferred Types
 // ---------------------------------------------------------------------------
 
+export const defeatConfigSchema = z
+  .object({
+    retreatWaves: z.number().int().min(0).default(1),
+    pauseSeconds: z.number().positive().default(3),
+  })
+  .strict();
+
 export const rawContentSchema = z
   .object({
     effects: z.array(effectDefSchema),
@@ -106,11 +113,13 @@ export const rawContentSchema = z
     stages: z.array(stageDefSchema),
     playerBaseOnHitEffects: z.array(z.string().min(1)),
     startingStageId: z.string().min(1),
+    defeat: defeatConfigSchema,
   })
   .strict();
 
 export const contentSchema = rawContentSchema;
 
+export type DefeatConfig = z.infer<typeof defeatConfigSchema>;
 export type DamageOverTimeEffectDef = z.infer<typeof damageOverTimeEffectDefSchema>;
 export type StunEffectDef = z.infer<typeof stunEffectDefSchema>;
 export type EffectDef = z.infer<typeof effectDefSchema>;
@@ -131,6 +140,7 @@ export interface Content {
   readonly stages: ReadonlyMap<string, StageDef>;
   readonly playerBaseOnHitEffects: readonly string[];
   readonly startingStageId: string;
+  readonly defeat: DefeatConfig;
   readonly raw: RawContent;
 }
 
@@ -254,6 +264,7 @@ export function loadContent(raw: unknown): Content {
     stages,
     playerBaseOnHitEffects: parsed.playerBaseOnHitEffects,
     startingStageId: parsed.startingStageId,
+    defeat: parsed.defeat,
     raw: parsed,
   };
 }

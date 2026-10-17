@@ -53,6 +53,7 @@ function makeCustomContent(overrides: {
     stages,
     playerBaseOnHitEffects: defaultContent.playerBaseOnHitEffects,
     startingStageId: defaultContent.startingStageId,
+    defeat: defaultContent.defeat,
     raw: defaultContent.raw,
   };
 }
@@ -482,6 +483,7 @@ describe('Timed Effects System (M1-08)', () => {
       stages: new Map([[stage.id, stage]]),
       playerBaseOnHitEffects: defaultConfig.content.playerBaseOnHitEffects,
       startingStageId: defaultConfig.content.startingStageId,
+      defeat: defaultConfig.content.defeat,
       raw: defaultConfig.content.raw,
     };
     const config: GameConfig = { ...defaultConfig, content: customContent };
