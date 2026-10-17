@@ -210,46 +210,14 @@ export function tickEffectInstances(
 }
 
 /**
- * Polymorphic tickEffects accepting either an array of EffectInstance or a
- * combatant object with { hp, effects, maxHp? }.
+ * Exported alias for tickEffectInstances for test compatibility.
  */
 export function tickEffects(
   target: readonly EffectInstance[],
   dt: number,
   contentInstance: Content,
-): TickEffectsResult;
-export function tickEffects<
-  T extends { readonly hp: number; readonly effects: readonly EffectInstance[]; readonly maxHp?: number },
->(
-  target: T,
-  dt: number,
-  contentInstance: Content,
-): T;
-export function tickEffects(
-  target:
-    | readonly EffectInstance[]
-    | { readonly hp: number; readonly effects: readonly EffectInstance[]; readonly maxHp?: number },
-  dt: number,
-  contentInstance: Content,
-): TickEffectsResult | { readonly hp: number; readonly effects: readonly EffectInstance[]; readonly maxHp?: number } {
-  if (Array.isArray(target)) {
-    return tickEffectInstances(target, dt, contentInstance);
-  }
-
-  const combatant = target as {
-    readonly hp: number;
-    readonly effects: readonly EffectInstance[];
-    readonly maxHp?: number;
-  };
-  const { effects, totalDamage } = tickEffectInstances(combatant.effects, dt, contentInstance);
-  const maxHp = combatant.maxHp ?? Number.POSITIVE_INFINITY;
-  const newHp = clamp(sub(combatant.hp, totalDamage), 0, maxHp);
-
-  return {
-    ...combatant,
-    hp: newHp,
-    effects,
-  };
+): TickEffectsResult {
+  return tickEffectInstances(target, dt, contentInstance);
 }
 
 /**
