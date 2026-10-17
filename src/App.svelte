@@ -1,9 +1,22 @@
 <script lang="ts">
-  import { gameStore, dispatchAction, setSpeed, setPaused } from './ui/index.js';
+  import { gameStore, dispatchAction, setSpeed, setPaused, saveNow, resetAndClearError } from './ui/index.js';
   import { deriveStats, xpToNextLevel } from './core/index.js';
   import { defaultConfig } from './data/index.js';
   
   let showDebug = $state(false);
+  let timeSinceLastSave = $state(0);
+  let showResetConfirm = $state(false);
+  
+  // Update "time since last save" every second
+  $effect(() => {
+    const interval = setInterval(() => {
+      if ($gameStore.lastSavedAt !== null) {
+        timeSinceLastSave = Math.floor((Date.now() - $gameStore.lastSavedAt) / 1000);
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  });
   
   function startCombat(stageId: string) {
     dispatchAction({ type: 'startActivity', activityId: 'combat', params: { stageId } });
@@ -22,10 +35,36 @@
   function toggleDebug() {
     showDebug = !showDebug;
   }
+  
+  function handleSaveNow() {
+    saveNow();
+    timeSinceLastSave = 0;
+  }
+  
+  function handleResetConfirm() {
+    resetAndClearError();
+    showResetConfirm = false;
+  }
 </script>
 
 <main>
   <h1>Classless Idle RPG</h1>
+  
+  <!-- Error Banner (D20) -->
+  {#if $gameStore.loadError !== null}
+    <div class="error-banner">
+      <strong>Save Error:</strong> {$gameStore.loadError}
+      {#if showResetConfirm}
+        <div style="margin-top: 0.5rem;">
+          <strong>Are you sure?</strong> This will delete the corrupted save and start a new game.
+          <button onclick={handleResetConfirm}>Yes, Reset</button>
+          <button onclick={() => showResetConfirm = false}>Cancel</button>
+        </div>
+      {:else}
+        <button onclick={() => showResetConfirm = true}>Reset Game</button>
+      {/if}
+    </div>
+  {/if}
   
   <!-- Speed Controls -->
   <div class="controls">
@@ -34,6 +73,14 @@
     <button onclick={() => { setSpeed(20); setPaused(false); }}>20x</button>
     <button onclick={() => setPaused(true)}>Pause</button>
     <span>Speed: {$gameStore.speed}x {$gameStore.paused ? '(PAUSED)' : ''}</span>
+    
+    <!-- Save controls -->
+    <div style="margin-left: auto; display: flex; gap: 0.5rem; align-items: center;">
+      <button onclick={handleSaveNow} disabled={$gameStore.loadError !== null}>Save now</button>
+      {#if $gameStore.lastSavedAt !== null}
+        <span style="font-size: 0.9rem;">Last saved: {timeSinceLastSave}s ago</span>
+      {/if}
+    </div>
   </div>
   
   <!-- Status Banner -->
@@ -192,6 +239,24 @@
   h1 {
     color: #c8a86e;
     margin-bottom: 1rem;
+  }
+  
+  .error-banner {
+    padding: 1rem;
+    background: #4a2020;
+    border-left: 4px solid #e24a4a;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+  }
+  
+  .error-banner button {
+    margin-top: 0.5rem;
+    margin-right: 0.5rem;
+    background: #e24a4a;
+  }
+  
+  .error-banner button:hover {
+    background: #f25a5a;
   }
   
   h2 {
