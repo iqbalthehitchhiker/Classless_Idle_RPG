@@ -114,3 +114,55 @@ if (stoppedAtTime !== null && levelAtStop !== null && xpAtStop !== null && clear
   
   console.log(`\nProgress preserved across stop/start: ${allPreserved ? 'YES' : 'NO'} (level: ${levelPreserved}, xp: ${xpPreserved}, clearedStages: ${clearedPreserved})`);
 }
+
+// M1-13: Round-trip test
+import { serialize, deserialize } from '../src/persistence/storage.js';
+
+const serialized = serialize(state);
+const deserialized = deserialize(serialized, defaultConfig);
+
+if (!deserialized.ok) {
+  console.log(`Round trip: FAILED - ${deserialized.error}`);
+} else {
+  const s1 = state;
+  const s2 = deserialized.state;
+  
+  // Compare only D19 fields (no derived values, no combat runtime)
+  const diffFields: string[] = [];
+  
+  // Character
+  if (s1.character.level !== s2.character.level) diffFields.push('character.level');
+  if (s1.character.xp !== s2.character.xp) diffFields.push('character.xp');
+  if (s1.character.skillPoints !== s2.character.skillPoints) diffFields.push('character.skillPoints');
+  if (s1.character.currentHp !== s2.character.currentHp) diffFields.push('character.currentHp');
+  
+  // Unlocked/cleared stages
+  if (JSON.stringify(s1.unlockedStages) !== JSON.stringify(s2.unlockedStages)) diffFields.push('unlockedStages');
+  if (JSON.stringify(s1.clearedStages) !== JSON.stringify(s2.clearedStages)) diffFields.push('clearedStages');
+  
+  // Settings
+  if (s1.settings.autoProgress !== s2.settings.autoProgress) diffFields.push('settings.autoProgress');
+  
+  // Time
+  if (s1.elapsedMs !== s2.elapsedMs) diffFields.push('elapsedMs');
+  
+  // RNG
+  if (s1.rng.seed !== s2.rng.seed) diffFields.push('rng.seed');
+  
+  // Log
+  if (JSON.stringify(s1.log) !== JSON.stringify(s2.log)) diffFields.push('log');
+  
+  // Activity
+  if (s1.activeActivity !== s2.activeActivity) diffFields.push('activeActivity');
+  
+  // StageId (combat runtime stageId becomes null if no combat, or should match)
+  const s1StageId = s1.combat?.stageId ?? null;
+  const s2StageId = s2.combat?.stageId ?? null;
+  if (s1StageId !== s2StageId) diffFields.push('stageId');
+  
+  if (diffFields.length === 0) {
+    console.log('Round trip: OK');
+  } else {
+    console.log(`Round trip: FAILED - differing fields: ${diffFields.join(', ')}`);
+  }
+}
