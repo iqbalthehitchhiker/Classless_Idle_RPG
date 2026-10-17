@@ -9,8 +9,9 @@ import {
   stepCombat,
   deriveStatsForLevel,
 } from '../../src/core/index.js';
-import type { Content, StageDef, WaveDef, EnemyDef } from '../../src/data/index.js';
-import { content as defaultContent } from '../../src/data/index.js';
+import type { EffectInstance, GameConfig, GameState } from '../../src/core/index.js';
+import type { Content, EffectDef, StageDef, WaveDef, EnemyDef } from '../../src/data/index.js';
+import { content as defaultContent, loadContent } from '../../src/data/index.js';
 
 function makeCustomContent(overrides: {
   enemies?: EnemyDef[];
@@ -40,6 +41,126 @@ function makeCustomContent(overrides: {
     startingStageId: defaultContent.startingStageId,
     raw: defaultContent.raw,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Balance-independent boss test helpers
+// ---------------------------------------------------------------------------
+
+const tinyMob: EnemyDef = {
+  id: 'tiny-mob',
+  name: 'Tiny Mob',
+  maxHp: 1,
+  damage: 0,
+  attackInterval: 10,
+  xpReward: 0,
+  isBoss: false,
+  onHitEffects: [],
+};
+
+const tinyWave: WaveDef = {
+  id: 'tiny-wave',
+  enemies: [{ enemyId: tinyMob.id, count: 1 }],
+};
+
+/** Builds and validates a minimal content set via loadContent. */
+function makeTinyContent(options: {
+  boss: EnemyDef;
+  bossXpBonus?: number;
+  stageId?: string;
+  unlocksStageId?: string;
+  extraStages?: StageDef[];
+  effects?: EffectDef[];
+  playerOnHitEffects?: string[];
+}): Content {
+  const stageId = options.stageId ?? 'tiny-stage';
+  const stage: StageDef = {
+    id: stageId,
+    name: 'Tiny Stage',
+    waves: [tinyWave.id],
+    boss: options.boss.id,
+    bossXpBonus: options.bossXpBonus ?? 0,
+    ...(options.unlocksStageId ? { unlocksStageId: options.unlocksStageId } : {}),
+  };
+  return loadContent({
+    effects: options.effects ?? [],
+    enemies: [tinyMob, options.boss],
+    waves: [tinyWave],
+    stages: [stage, ...(options.extraStages ?? [])],
+    playerBaseOnHitEffects: options.playerOnHitEffects ?? [],
+    startingStageId: stageId,
+  });
+}
+
+/** Large level curve so XP assertions are not masked by level-ups. */
+function noLevelUpConfig(content: Content): GameConfig {
+  return {
+    ...defaultConfig,
+    content,
+    levelCurve: { baseXp: 1_000_000, growthFactor: 1, skillPointsPerLevel: 1 },
+  };
+}
+
+/** Hand-builds a state already in the boss phase, facing the stage boss. */
+function startAtBoss(
+  state: GameState,
+  content: Content,
+  stageId: string,
+  options: {
+    autoProgress?: boolean;
+    unlockedStages?: readonly string[];
+    bossEffects?: readonly EffectInstance[];
+  } = {},
+): GameState {
+  const stage = content.stages.get(stageId);
+  if (!stage) throw new Error(`startAtBoss: stage '${stageId}' not found`);
+  const boss = content.enemies.get(stage.boss);
+  if (!boss) throw new Error(`startAtBoss: boss '${stage.boss}' not found`);
+
+  const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+  return {
+    ...state,
+    activeActivity: 'combat',
+    unlockedStages: options.unlockedStages ?? [stageId],
+    settings: { autoProgress: options.autoProgress ?? false },
+    combat: {
+      stageId,
+      waveIndex: 0,
+      enemies: [
+        {
+          defId: boss.id,
+          hp: boss.maxHp,
+          maxHp: boss.maxHp,
+          attackTimerMs: 0,
+          effects: options.bossEffects ?? [],
+        },
+      ],
+      playerAttackTimerMs: 0,
+      playerHp: maxHp,
+      playerEffects: [],
+      playerDefeated: false,
+      phase: { type: 'boss' },
+      log: [],
+    },
+  };
+}
+
+function advanceUntil(
+  state: GameState,
+  config: GameConfig,
+  done: (state: GameState) => boolean,
+  maxSteps = 50,
+): GameState {
+  for (let i = 0; i < maxSteps; i++) {
+    state = stepCombat(state, 0.1, config);
+    if (done(state)) return state;
+  }
+  return state;
+}
+
+/** Reads the phase through a function so control-flow narrowing does not leak. */
+function phaseOf(state: GameState): string {
+  return state.combat?.phase.type ?? 'none';
 }
 
 describe('M1-09: Boss Encounters and Stage Progression', () => {
@@ -95,74 +216,78 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
   // -------------------------------------------------------------------------
   it('awards xpReward + bossXpBonus on boss kill by attack', () => {
     const boss: EnemyDef = {
-      id: 'weak-boss',
-      name: 'Weak Boss',
-      maxHp: 50,
-      damage: 1,
+      id: 'attack-boss',
+      name: 'Attack Boss',
+      maxHp: 5,
+      damage: 0,
       attackInterval: 10.0,
       xpReward: 150,
       isBoss: true,
       onHitEffects: [],
     };
-    const wave: WaveDef = { id: 'w1', enemies: [{ enemyId: 'slime', count: 1 }] };
-    const stage: StageDef = {
-      id: 'xp-test-stage',
-      name: 'XP Test Stage',
-      waves: ['w1'],
-      boss: 'weak-boss',
+    const customContent = makeTinyContent({
+      boss,
       bossXpBonus: 50,
-    };
-    const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
+      stageId: 'xp-attack-stage',
+    });
+    const config = noLevelUpConfig(customContent);
 
-    let state = createInitialState(1, defaultConfig);
-    state = { ...state, unlockedStages: [...state.unlockedStages, 'xp-test-stage'] };
-    state = startCombat(state, 'xp-test-stage', { ...defaultConfig, content: customContent });
-
-    // Kill wave 1 then boss
+    let state = startAtBoss(createInitialState(1, config), customContent, 'xp-attack-stage');
     const initialXp = state.character.xp;
-    for (let i = 0; i < 200; i++) {
-      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.waveIndex === 0 && state.combat!.phase.type === 'active') break;
-    }
 
-    // Boss was killed, XP = base 150 + bonus 50 + wave 1 enemy xp (10)
-    expect(state.character.xp).toBe(initialXp + 10 + 150 + 50);
+    // One player attack (10 steps at 0.1 s) kills the 5 HP boss.
+    state = advanceUntil(state, config, (s) => s.clearedStages.includes('xp-attack-stage'));
+
+    expect(state.clearedStages).toContain('xp-attack-stage');
+    expect(state.character.xp).toBe(initialXp + 150 + 50);
   });
 
   it('awards xpReward + bossXpBonus on boss kill by DoT', () => {
+    const burn: EffectDef = {
+      id: 'test-burn',
+      name: 'Test Burn',
+      kind: 'damageOverTime',
+      duration: 4,
+      tickInterval: 1,
+      damagePerTick: 100,
+      stacking: 'refresh',
+      maxStacks: 3,
+    };
     const boss: EnemyDef = {
       id: 'dot-boss',
       name: 'DoT Boss',
       maxHp: 5,
-      damage: 1,
+      damage: 0,
       attackInterval: 10.0,
       xpReward: 100,
       isBoss: true,
       onHitEffects: [],
     };
-    const wave: WaveDef = { id: 'w1', enemies: [{ enemyId: 'slime', count: 1 }] };
-    const stage: StageDef = {
-      id: 'dot-boss-stage',
-      name: 'DoT Boss Stage',
-      waves: ['w1'],
-      boss: 'dot-boss',
+    const customContent = makeTinyContent({
+      boss,
       bossXpBonus: 75,
+      stageId: 'dot-boss-stage',
+      effects: [burn],
+    });
+    const config = noLevelUpConfig(customContent);
+
+    // Pre-apply burn so the next 0.1 s step ticks and kills the boss before
+    // the player's first attack (which would need 1 s).
+    const burnInstance: EffectInstance = {
+      effectId: burn.id,
+      remainingMs: 4000,
+      tickTimerMs: 900,
+      stacks: 1,
     };
-    const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
-
-    let state = createInitialState(1, defaultConfig);
-    state = { ...state, unlockedStages: [...state.unlockedStages, 'dot-boss-stage'] };
-    state = startCombat(state, 'dot-boss-stage', { ...defaultConfig, content: customContent });
-
-    // Kill wave 1, wait for boss, let burn kill boss
+    let state = startAtBoss(createInitialState(1, config), customContent, 'dot-boss-stage', {
+      bossEffects: [burnInstance],
+    });
     const initialXp = state.character.xp;
-    for (let i = 0; i < 300; i++) {
-      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.waveIndex === 0 && state.combat!.phase.type === 'active') break;
-    }
 
-    // Boss was killed, XP includes boss bonus
-    expect(state.character.xp).toBeGreaterThanOrEqual(initialXp + 100 + 75);
+    state = advanceUntil(state, config, (s) => s.clearedStages.includes('dot-boss-stage'));
+
+    expect(state.clearedStages).toContain('dot-boss-stage');
+    expect(state.character.xp).toBe(initialXp + 100 + 75);
   });
 
   // -------------------------------------------------------------------------
@@ -172,159 +297,113 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     const boss: EnemyDef = {
       id: 'unlock-boss',
       name: 'Unlock Boss',
-      maxHp: 50,
-      damage: 1,
+      maxHp: 5,
+      damage: 0,
       attackInterval: 10.0,
       xpReward: 100,
       isBoss: true,
       onHitEffects: [],
     };
-    const wave: WaveDef = { id: 'w1', enemies: [{ enemyId: 'slime', count: 1 }] };
-    const stage1: StageDef = {
-      id: 'stage-unlock-1',
-      name: 'Stage 1',
-      waves: ['w1'],
-      boss: 'unlock-boss',
-      bossXpBonus: 50,
-      unlocksStageId: 'stage-unlock-2',
-    };
     const stage2: StageDef = {
       id: 'stage-unlock-2',
       name: 'Stage 2',
-      waves: ['w1'],
-      boss: 'unlock-boss',
+      waves: [tinyWave.id],
+      boss: boss.id,
       bossXpBonus: 50,
     };
-    const customContent = makeCustomContent({
-      enemies: [boss],
-      waves: [wave],
-      stages: [stage1, stage2],
+    const customContent = makeTinyContent({
+      boss,
+      bossXpBonus: 50,
+      stageId: 'stage-unlock-1',
+      unlocksStageId: 'stage-unlock-2',
+      extraStages: [stage2],
     });
+    const config = noLevelUpConfig(customContent);
 
-    let state = createInitialState(1, defaultConfig);
-    state = { ...state, unlockedStages: ['stage-unlock-1'] };
-    state = startCombat(state, 'stage-unlock-1', { ...defaultConfig, content: customContent });
-
-    // stage-unlock-2 not unlocked yet
+    let state = startAtBoss(createInitialState(1, config), customContent, 'stage-unlock-1', {
+      unlockedStages: ['stage-unlock-1'],
+    });
     expect(state.unlockedStages).not.toContain('stage-unlock-2');
 
-    // Kill wave 1 and boss
-    for (let i = 0; i < 500; i++) {
-      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.waveIndex === 0 && state.combat!.phase.type === 'active') break;
-    }
-
-    // stage-unlock-2 now unlocked
+    // First kill unlocks stage 2.
+    state = advanceUntil(state, config, (s) => s.clearedStages.includes('stage-unlock-1'));
+    expect(state.clearedStages).toContain('stage-unlock-1');
     expect(state.unlockedStages).toContain('stage-unlock-2');
-    const unlockCount1 = state.unlockedStages.filter((s) => s === 'stage-unlock-2').length;
-    expect(unlockCount1).toBe(1);
+    expect(state.unlockedStages.filter((s) => s === 'stage-unlock-2')).toHaveLength(1);
 
-    // Kill boss again (farming)
-    for (let i = 0; i < 300; i++) {
-      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.waveIndex === 0 && state.combat!.phase.type === 'active') break;
-    }
+    const xpAfterFirst = state.character.xp;
 
-    // stage-unlock-2 still present, no duplicates
-    const unlockCount2 = state.unlockedStages.filter((s) => s === 'stage-unlock-2').length;
-    expect(unlockCount2).toBe(1);
+    // Second kill (farming) must not duplicate the unlock.
+    state = advanceUntil(state, config, (s) => s.character.xp >= xpAfterFirst + 150);
+    expect(state.character.xp).toBe(xpAfterFirst + 150);
+    expect(state.unlockedStages.filter((s) => s === 'stage-unlock-2')).toHaveLength(1);
   });
 
   it('adds stage to clearedStages on boss kill (idempotent, no duplicates)', () => {
     const boss: EnemyDef = {
       id: 'clear-boss',
       name: 'Clear Boss',
-      maxHp: 50,
-      damage: 1,
+      maxHp: 5,
+      damage: 0,
       attackInterval: 10.0,
       xpReward: 100,
       isBoss: true,
       onHitEffects: [],
     };
-    const wave: WaveDef = { id: 'w1', enemies: [{ enemyId: 'slime', count: 1 }] };
-    const stage: StageDef = {
-      id: 'clear-stage',
-      name: 'Clear Stage',
-      waves: ['w1'],
-      boss: 'clear-boss',
+    const customContent = makeTinyContent({
+      boss,
       bossXpBonus: 50,
-    };
-    const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
+      stageId: 'clear-stage',
+    });
+    const config = noLevelUpConfig(customContent);
 
-    let state = createInitialState(1, defaultConfig);
-    state = { ...state, unlockedStages: ['clear-stage'] };
-    state = startCombat(state, 'clear-stage', { ...defaultConfig, content: customContent });
-
+    let state = startAtBoss(createInitialState(1, config), customContent, 'clear-stage');
     expect(state.clearedStages).toEqual([]);
 
-    // Kill boss once
-    for (let i = 0; i < 300; i++) {
-      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.waveIndex === 0 && state.combat!.phase.type === 'active') break;
-    }
-
+    // First kill records the stage exactly once.
+    state = advanceUntil(state, config, (s) => s.clearedStages.includes('clear-stage'));
     expect(state.clearedStages).toContain('clear-stage');
-    const clearCount1 = state.clearedStages.filter((s) => s === 'clear-stage').length;
-    expect(clearCount1).toBe(1);
+    expect(state.clearedStages.filter((s) => s === 'clear-stage')).toHaveLength(1);
 
-    // Kill boss again
-    for (let i = 0; i < 300; i++) {
-      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.waveIndex === 0 && state.combat!.phase.type === 'active') break;
-    }
+    const xpAfterFirst = state.character.xp;
 
-    // No duplicates
-    const clearCount2 = state.clearedStages.filter((s) => s === 'clear-stage').length;
-    expect(clearCount2).toBe(1);
+    // Second kill must not duplicate the cleared entry.
+    state = advanceUntil(state, config, (s) => s.character.xp >= xpAfterFirst + 150);
+    expect(state.character.xp).toBe(xpAfterFirst + 150);
+    expect(state.clearedStages.filter((s) => s === 'clear-stage')).toHaveLength(1);
   });
 
   it('awards boss XP bonus on every boss kill (not just first)', () => {
     const boss: EnemyDef = {
       id: 'repeat-boss',
       name: 'Repeat Boss',
-      maxHp: 10, // Very weak
-      damage: 1,
+      maxHp: 5,
+      damage: 0,
       attackInterval: 10.0,
       xpReward: 100,
       isBoss: true,
       onHitEffects: [],
     };
-    const wave: WaveDef = { id: 'w1', enemies: [{ enemyId: 'slime', count: 1 }] };
-    const stage: StageDef = {
-      id: 'repeat-stage',
-      name: 'Repeat Stage',
-      waves: ['w1'],
-      boss: 'repeat-boss',
+    const customContent = makeTinyContent({
+      boss,
       bossXpBonus: 50,
-    };
-    const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
+      stageId: 'repeat-stage',
+    });
+    const config = noLevelUpConfig(customContent);
 
-    let state = createInitialState(1, defaultConfig);
-    state = { ...state, unlockedStages: ['repeat-stage'] };
-    state = startCombat(state, 'repeat-stage', { ...defaultConfig, content: customContent });
-
+    let state = startAtBoss(createInitialState(1, config), customContent, 'repeat-stage');
     const initialXp = state.character.xp;
 
-    // Kill boss first time
-    for (let i = 0; i < 300; i++) {
-      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.waveIndex === 0 && state.combat!.phase.type === 'active') break;
-    }
-
+    // First kill.
+    state = advanceUntil(state, config, (s) => s.clearedStages.includes('repeat-stage'));
+    expect(state.clearedStages).toContain('repeat-stage');
     const xpAfterFirst = state.character.xp;
-    const firstKillXp = xpAfterFirst - initialXp;
-    expect(firstKillXp).toBeGreaterThanOrEqual(100 + 50);
+    expect(xpAfterFirst - initialXp).toBe(100 + 50);
 
-    // Kill boss second time
-    for (let i = 0; i < 300; i++) {
-      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.waveIndex === 0 && state.combat!.phase.type === 'active') break;
-    }
-
+    // Second kill from the farming reset.
+    state = advanceUntil(state, config, (s) => s.character.xp >= xpAfterFirst + 150);
     const xpAfterSecond = state.character.xp;
-    const secondKillXp = xpAfterSecond - xpAfterFirst;
-    // Boss XP bonus awarded again
-    expect(secondKillXp).toBeGreaterThanOrEqual(100 + 50);
+    expect(xpAfterSecond - xpAfterFirst).toBe(100 + 50);
   });
 
   // -------------------------------------------------------------------------
@@ -334,50 +413,46 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     const boss: EnemyDef = {
       id: 'farm-boss',
       name: 'Farm Boss',
-      maxHp: 10, // Very weak
-      damage: 1,
+      maxHp: 5,
+      damage: 0,
       attackInterval: 10.0,
       xpReward: 100,
       isBoss: true,
       onHitEffects: [],
     };
-    const wave: WaveDef = { id: 'w1', enemies: [{ enemyId: 'slime', count: 1 }] };
-    const stage1: StageDef = {
-      id: 'farm-stage-1',
-      name: 'Farm Stage 1',
-      waves: ['w1'],
-      boss: 'farm-boss',
-      bossXpBonus: 50,
-      unlocksStageId: 'farm-stage-2',
-    };
     const stage2: StageDef = {
       id: 'farm-stage-2',
       name: 'Farm Stage 2',
-      waves: ['w1'],
-      boss: 'farm-boss',
+      waves: [tinyWave.id],
+      boss: boss.id,
       bossXpBonus: 50,
     };
-    const customContent = makeCustomContent({
-      enemies: [boss],
-      waves: [wave],
-      stages: [stage1, stage2],
+    const customContent = makeTinyContent({
+      boss,
+      bossXpBonus: 50,
+      stageId: 'farm-stage-1',
+      unlocksStageId: 'farm-stage-2',
+      extraStages: [stage2],
     });
+    const config = noLevelUpConfig(customContent);
 
-    let state = createInitialState(1, defaultConfig);
-    state = { ...state, unlockedStages: ['farm-stage-1'], settings: { autoProgress: false } };
-    state = startCombat(state, 'farm-stage-1', { ...defaultConfig, content: customContent });
+    let state = startAtBoss(createInitialState(1, config), customContent, 'farm-stage-1', {
+      autoProgress: false,
+      unlockedStages: ['farm-stage-1'],
+    });
+    const initialXp = state.character.xp;
 
-    // Kill boss
-    for (let i = 0; i < 300; i++) {
-      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.waveIndex === 0 && state.combat!.phase.type === 'active') break;
-    }
+    state = advanceUntil(state, config, (s) => s.clearedStages.includes('farm-stage-1'));
+
+    // Kill definitely happened before asserting the farming behavior.
+    expect(state.clearedStages).toContain('farm-stage-1');
+    expect(state.character.xp).toBe(initialXp + 100 + 50);
+    expect(state.unlockedStages).toContain('farm-stage-2');
 
     // Still on farm-stage-1, wave 0, active
     expect(state.combat!.stageId).toBe('farm-stage-1');
     expect(state.combat!.waveIndex).toBe(0);
     expect(state.combat!.phase.type).toBe('active');
-    expect(state.unlockedStages).toContain('farm-stage-2'); // Unlock happened
   });
 
   // -------------------------------------------------------------------------
@@ -436,33 +511,32 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     const boss: EnemyDef = {
       id: 'final-boss',
       name: 'Final Boss',
-      maxHp: 50,
-      damage: 1,
+      maxHp: 5,
+      damage: 0,
       attackInterval: 10.0,
       xpReward: 100,
       isBoss: true,
       onHitEffects: [],
     };
-    const wave: WaveDef = { id: 'w1', enemies: [{ enemyId: 'slime', count: 1 }] };
-    const stage: StageDef = {
-      id: 'final-stage',
-      name: 'Final Stage',
-      waves: ['w1'],
-      boss: 'final-boss',
+    const customContent = makeTinyContent({
+      boss,
       bossXpBonus: 50,
+      stageId: 'final-stage',
       // No unlocksStageId
-    };
-    const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
+    });
+    const config = noLevelUpConfig(customContent);
 
-    let state = createInitialState(1, defaultConfig);
-    state = { ...state, unlockedStages: ['final-stage'], settings: { autoProgress: true } };
-    state = startCombat(state, 'final-stage', { ...defaultConfig, content: customContent });
+    let state = startAtBoss(createInitialState(1, config), customContent, 'final-stage', {
+      autoProgress: true,
+      unlockedStages: ['final-stage'],
+    });
+    const initialXp = state.character.xp;
 
-    // Kill boss
-    for (let i = 0; i < 300; i++) {
-      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.waveIndex === 0 && state.combat!.phase.type === 'active') break;
-    }
+    state = advanceUntil(state, config, (s) => s.clearedStages.includes('final-stage'));
+
+    // A boss kill really happened; the stage did not merely stay put.
+    expect(state.clearedStages).toContain('final-stage');
+    expect(state.character.xp).toBe(initialXp + 100 + 50);
 
     // Still on final-stage (farming)
     expect(state.combat!.stageId).toBe('final-stage');
@@ -621,7 +695,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     // Kill boss
     let foundReset = false;
     for (let i = 0; i < 200; i++) {
-      const prevPhase = state.combat!.phase.type;
+      const prevPhase = phaseOf(state);
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
       
       if (state.combat!.playerDefeated) {
@@ -629,7 +703,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       }
       
       // Check if we just transitioned from boss to wave 0 active
-      if (prevPhase !== 'active' && state.combat!.phase.type === 'active' && state.combat!.waveIndex === 0) {
+      if (prevPhase === 'boss' && phaseOf(state) === 'active' && state.combat!.waveIndex === 0) {
         foundReset = true;
         break;
       }
@@ -691,7 +765,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     // Kill boss (should level up and heal to new maxHp)
     let foundReset = false;
     for (let i = 0; i < 500; i++) {
-      const prevPhase = state.combat!.phase.type;
+      const prevPhase = phaseOf(state);
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
       
       if (state.combat!.playerDefeated) {
@@ -699,7 +773,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       }
       
       // Check if we just completed the boss fight
-      if (prevPhase !== 'active' && state.combat!.phase.type === 'active' && state.combat!.waveIndex === 0) {
+      if (prevPhase === 'boss' && phaseOf(state) === 'active' && state.combat!.waveIndex === 0) {
         foundReset = true;
         break;
       }
