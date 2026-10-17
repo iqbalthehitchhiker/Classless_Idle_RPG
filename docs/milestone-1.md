@@ -19,8 +19,8 @@ Scope reference: SRS section 6, Phase 1. Decisions: `docs/decisions.md`.
 - [x] **M1-06 Content schemas.** Zod schemas + data for enemies, waves, stage, effects. Cross-reference validation (wave references existing enemy ids). Tests for a broken reference failing load.
 - [x] **M1-07 Combat engine.** Attack timers for player and enemies, damage, crits (seeded RNG), kill, wave advance. Tests for each.
 - [x] **M1-08 Effect system.** Timed effects with duration, tick interval, stacking rule. Implement Burn (player skill, auto-applied on hit) and Stun (boss). Tests: refresh behavior, expiry, stun blocks attacks.
-- [ ] **M1-09 Boss + stage unlock.** Boss wave, first-kill unlock is idempotent, farming loop and `autoProgress` per D2.
-- [ ] **M1-10 Defeat handling.** Per D1. Tests: retreat from wave 1 stays on wave 1; pause blocks combat; full heal.
+- [x] **M1-09 Boss + stage unlock.** Boss wave, first-kill unlock is idempotent, farming loop and `autoProgress` per D2.
+- [x] **M1-10 Defeat handling.** Per D1. Tests: retreat from wave 1 stays on wave 1; pause blocks combat; full heal.
 - [ ] **M1-11 Rewards.** XP per enemy, boss bonus XP, results log capped at N entries (NFR-009).
 
 ### Activities and persistence
