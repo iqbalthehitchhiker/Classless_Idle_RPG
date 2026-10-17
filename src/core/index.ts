@@ -25,5 +25,5 @@ export {
   isStunned,
 } from './combat/index.js';
 export type { Activity } from './activity.js';
-export { registerActivity, getActivity, getAllActivities } from './activity.js';
+export { getActivity } from './activities.js';
 

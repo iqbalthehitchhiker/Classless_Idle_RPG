@@ -18,7 +18,7 @@
 import { deriveStatsForLevel } from './stats.js';
 import { startCombat } from './combat/index.js';
 import type { GameConfig, GameState, Action } from './types.js';
-import { getActivity } from './activity.js';
+import { getActivity } from './activities.js';
 
 // ---------------------------------------------------------------------------
 // Constants (exported so tests can pin them)

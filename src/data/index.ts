@@ -7,8 +7,6 @@
  */
 
 import type { GameConfig } from '../core/types.js';
-import { registerActivity } from '../core/activity.js';
-import { combatActivity } from '../core/combat/activity.js';
 import { characterStats } from './character.js';
 import { levelCurve } from './levelCurve.js';
 import { content } from './content/index.js';
@@ -17,9 +15,6 @@ export * from './character.js';
 export * from './levelCurve.js';
 export * from './schemas.js';
 export * from './content/index.js';
-
-// Register activities
-registerActivity(combatActivity);
 
 /**
  * Default configuration bundle for gameplay.

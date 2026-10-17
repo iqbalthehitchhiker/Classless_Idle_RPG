@@ -1,7 +1,7 @@
 /**
  * Activity framework (M1-12).
  *
- * Defines the generic Activity interface and manages the activities registry.
+ * Defines the generic Activity interface.
  * Activities are independent game modes (combat, training, etc.) that can be
  * started, advanced, and stopped through a unified interface.
  */
@@ -50,31 +50,4 @@ export interface Activity {
    * Clears runtime state (combat state) but keeps persistent progress.
    */
   stop(state: GameState): GameState;
-}
-
-// ---------------------------------------------------------------------------
-// Activities Registry
-// ---------------------------------------------------------------------------
-
-const activities = new Map<string, Activity>();
-
-/**
- * Register an activity implementation.
- */
-export function registerActivity(activity: Activity): void {
-  activities.set(activity.id, activity);
-}
-
-/**
- * Get an activity by ID.
- */
-export function getActivity(id: string): Activity | undefined {
-  return activities.get(id);
-}
-
-/**
- * Get all registered activities.
- */
-export function getAllActivities(): ReadonlyMap<string, Activity> {
-  return activities;
 }
