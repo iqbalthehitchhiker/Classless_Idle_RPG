@@ -13,7 +13,7 @@ const seed = args[1] ? parseInt(args[1], 10) : 1;
 
 const STEP = 0.1;
 let state = createInitialState(seed, defaultConfig);
-state = dispatch(state, { type: 'startCombat', stageId: defaultConfig.content.startingStageId }, defaultConfig);
+state = dispatch(state, { type: 'startActivity', activityId: 'combat', params: { stageId: defaultConfig.content.startingStageId } }, defaultConfig);
 
 function newEntries(log: readonly LogEntry[], last: LogEntry | null): readonly LogEntry[] {
   if (last === null) return log;
@@ -32,11 +32,32 @@ let stageUnlocks = 0;
 let levelUps = 0;
 let deaths = 0;
 
+// Exercise stop/start mid-run (M1-12)
+let stoppedAtTime: number | null = null;
+let levelAtStop: number | null = null;
+let xpAtStop: number | null = null;
+let clearedStagesAtStop: readonly string[] | null = null;
+
 while (time < totalSeconds) {
   state = advance(state, STEP, defaultConfig);
   time += STEP;
 
   maxLogLength = Math.max(maxLogLength, state.log.length);
+
+  // Stop at 120 s, then restart immediately
+  if (time >= 120 && stoppedAtTime === null) {
+    console.log(`\n[${time.toFixed(1)}s] Stopping combat...`);
+    levelAtStop = state.character.level;
+    xpAtStop = state.character.xp;
+    clearedStagesAtStop = state.clearedStages;
+    
+    state = dispatch(state, { type: 'stopActivity' }, defaultConfig);
+    stoppedAtTime = time;
+    
+    console.log(`[${time.toFixed(1)}s] Combat stopped. Restarting...`);
+    state = dispatch(state, { type: 'startActivity', activityId: 'combat', params: { stageId: defaultConfig.content.startingStageId } }, defaultConfig);
+    console.log(`[${time.toFixed(1)}s] Combat restarted.\n`);
+  }
 
   if (!state.combat) break;
 
@@ -83,3 +104,13 @@ console.log(`Level ups: ${levelUps}`);
 console.log(`Stage unlocks: ${stageUnlocks}`);
 console.log(`Final stage: ${state.combat?.stageId || 'none'}`);
 console.log(`Max log length: ${maxLogLength}`);
+
+// Report on preserved progress across stop/start
+if (stoppedAtTime !== null && levelAtStop !== null && xpAtStop !== null && clearedStagesAtStop !== null) {
+  const levelPreserved = state.character.level >= levelAtStop;
+  const xpPreserved = state.character.xp >= xpAtStop;
+  const clearedPreserved = clearedStagesAtStop.every(s => state.clearedStages.includes(s));
+  const allPreserved = levelPreserved && xpPreserved && clearedPreserved;
+  
+  console.log(`\nProgress preserved across stop/start: ${allPreserved ? 'YES' : 'NO'} (level: ${levelPreserved}, xp: ${xpPreserved}, clearedStages: ${clearedPreserved})`);
+}

@@ -131,4 +131,7 @@ export interface GameState {
 
 export type Action =
   | { readonly type: 'startCombat'; readonly stageId: string }
-  | { readonly type: 'stopCombat' };
+  | { readonly type: 'stopCombat' }
+  | { readonly type: 'startActivity'; readonly activityId: string; readonly params: Record<string, unknown> }
+  | { readonly type: 'stopActivity' }
+  | { readonly type: 'setAutoProgress'; readonly enabled: boolean };

@@ -1,0 +1,63 @@
+/**
+ * Combat Activity implementation (M1-12).
+ *
+ * Wraps existing startCombat / stepCombat logic as an Activity.
+ */
+
+import type { Activity } from '../activity.js';
+import type { GameConfig, GameState } from '../types.js';
+import { startCombat as startCombatImpl, stepCombat } from './engine.js';
+
+export const combatActivity: Activity = {
+  id: 'combat',
+
+  canStart(
+    state: GameState,
+    config: GameConfig,
+    params: Record<string, unknown>,
+  ): 'ok' | string {
+    const stageId = params.stageId;
+    if (typeof stageId !== 'string') {
+      return 'missing or invalid stageId parameter';
+    }
+
+    if (!state.unlockedStages.includes(stageId)) {
+      return `stage ${stageId} is locked`;
+    }
+
+    const stage = config.content.stages.get(stageId);
+    if (!stage) {
+      return `stage ${stageId} not found`;
+    }
+
+    return 'ok';
+  },
+
+  start(
+    state: GameState,
+    config: GameConfig,
+    params: Record<string, unknown>,
+  ): GameState {
+    const stageId = params.stageId as string;
+    return startCombatImpl(state, stageId, config);
+  },
+
+  advance(
+    state: GameState,
+    dtMs: number,
+    config: GameConfig,
+  ): GameState {
+    const dtSeconds = dtMs / 1000;
+    return stepCombat(state, dtSeconds, config);
+  },
+
+  stop(state: GameState): GameState {
+    // Stop combat: clear activeActivity and combat state
+    // Preserve XP, level, unlocks, clearedStages, settings, log, and currentHp
+    return {
+      ...state,
+      activeActivity: null,
+      combat: null,
+    };
+  },
+};

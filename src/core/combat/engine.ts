@@ -92,7 +92,12 @@ export function startCombat(
   }
 
   const initialEnemies = spawnWaveEnemies(stage.waves[0], config.content);
-  const playerHp = state.character.currentHp;
+  
+  // Start from current HP, but if it's 0 or below, use derived maxHp (M1-12)
+  let playerHp = state.character.currentHp;
+  if (playerHp <= 0) {
+    playerHp = deriveStats(state, config).maxHp;
+  }
 
   const combat: CombatState = {
     stageId,

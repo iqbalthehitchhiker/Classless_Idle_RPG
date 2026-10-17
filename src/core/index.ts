@@ -24,4 +24,6 @@ export {
   tickEffects,
   isStunned,
 } from './combat/index.js';
+export type { Activity } from './activity.js';
+export { registerActivity, getActivity, getAllActivities } from './activity.js';
 

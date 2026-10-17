@@ -3,3 +3,4 @@
  */
 export * from './engine.js';
 export * from './effects.js';
+export * from './activity.js';

@@ -16,8 +16,9 @@
  */
 
 import { deriveStatsForLevel } from './stats.js';
-import { startCombat, stepCombat } from './combat/index.js';
+import { startCombat } from './combat/index.js';
 import type { GameConfig, GameState, Action } from './types.js';
+import { getActivity } from './activity.js';
 
 // ---------------------------------------------------------------------------
 // Constants (exported so tests can pin them)
@@ -66,12 +67,18 @@ export function createInitialState(
 /**
  * Advance game logic by exactly STEP_MS milliseconds.
  */
-function tick(state: GameState, stepSeconds: number, config: GameConfig): GameState {
+function tick(state: GameState, _stepSeconds: number, config: GameConfig): GameState {
   // Integer-ms clock bookkeeping lives in the step runner (hard rule 9).
   const stepped: GameState = { ...state, elapsedMs: state.elapsedMs + STEP_MS };
-  if (stepped.activeActivity === 'combat' && stepped.combat !== null) {
-    return stepCombat(stepped, stepSeconds, config);
+  
+  // Drive activeActivity through the registry
+  if (stepped.activeActivity !== null) {
+    const activity = getActivity(stepped.activeActivity);
+    if (activity) {
+      return activity.advance(stepped, STEP_MS, config);
+    }
   }
+  
   return stepped;
 }
 
@@ -131,6 +138,55 @@ export function dispatch(state: GameState, action: Action, config: GameConfig): 
     case 'stopCombat': {
       if (state.activeActivity !== 'combat') return state;
       return { ...state, activeActivity: null, combat: null };
+    }
+
+    case 'startActivity': {
+      const activity = getActivity(action.activityId);
+      if (!activity) {
+        // Unknown activity: ignore
+        return state;
+      }
+
+      const canStartResult = activity.canStart(state, config, action.params);
+      if (canStartResult !== 'ok') {
+        // Cannot start: rejected, no state change
+        return state;
+      }
+
+      // Stop current activity if one is active (FR-010: preserve earned progress)
+      let updatedState = state;
+      if (state.activeActivity !== null) {
+        const currentActivity = getActivity(state.activeActivity);
+        if (currentActivity) {
+          updatedState = currentActivity.stop(updatedState);
+        }
+      }
+
+      // Start the new activity
+      return activity.start(updatedState, config, action.params);
+    }
+
+    case 'stopActivity': {
+      if (state.activeActivity === null) {
+        return state;
+      }
+
+      const activity = getActivity(state.activeActivity);
+      if (!activity) {
+        return state;
+      }
+
+      return activity.stop(state);
+    }
+
+    case 'setAutoProgress': {
+      return {
+        ...state,
+        settings: {
+          ...state.settings,
+          autoProgress: action.enabled,
+        },
+      };
     }
 
     default: {
