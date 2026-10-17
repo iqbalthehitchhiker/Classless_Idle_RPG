@@ -7,6 +7,7 @@ import {
   startCombat,
   stepCombat,
   spawnWaveEnemies,
+  deriveStatsForLevel,
 } from '../../src/core/index.js';
 import * as statsModule from '../../src/core/stats.js';
 import type { EnemyState, GameState } from '../../src/core/types.js';
@@ -277,7 +278,7 @@ describe('Combat Engine (M1-07)', () => {
   // -------------------------------------------------------------------------
   // 5. Wave advance and bossPending
   // -------------------------------------------------------------------------
-  it('spawns next wave when current is cleared, and sets bossPending after final wave', () => {
+  it('spawns next wave when current is cleared, and spawns boss after final wave', () => {
     const weakEnemy: EnemyDef = {
       id: 'one-shot',
       name: 'One Shot',
@@ -318,21 +319,22 @@ describe('Combat Engine (M1-07)', () => {
     // Wave advances to index 1!
     expect(state.combat!.waveIndex).toBe(1);
     expect(state.combat!.enemies.length).toBe(1);
-    expect(state.combat!.bossPending).toBe(false);
+    expect(state.combat!.phase.type).toBe('active');
 
     // Kill wave 2 enemy (step 20)
     for (let i = 0; i < 10; i++) {
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
-    // All regular waves cleared -> bossPending is true!
-    expect(state.combat!.bossPending).toBe(true);
-    expect(state.combat!.phase.type).toBe('bossPending');
-    expect(state.combat!.enemies.length).toBe(0);
+    // All regular waves cleared -> boss spawned!
+    expect(state.combat!.phase.type).toBe('boss');
+    expect(state.combat!.enemies.length).toBe(1);
+    expect(state.combat!.enemies[0].defId).toBe('goblin-chief');
 
-    // Further steps do not process combat
-    const frozenState = stepCombat(state, 1.0, { ...defaultConfig, content: customContent });
-    expect(frozenState).toEqual(state);
+    // Further steps process boss combat normally
+    const beforeBossHp = state.combat!.enemies[0].hp;
+    const nextState = stepCombat(state, 1.0, { ...defaultConfig, content: customContent });
+    expect(nextState.combat!.enemies[0].hp).toBeLessThan(beforeBossHp);
   });
 
   // -------------------------------------------------------------------------
@@ -587,10 +589,12 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // D14: Player wins tie, survives with 1 HP; stage cleared regular waves -> bossPending
-        expect(state.combat!.playerHp).toBe(1);
+        // D14 + D18: Player wins tie, not defeated; wave cleared and boss spawned; HP fully restored to maxHp
         expect(state.combat!.playerDefeated).toBe(false);
-        expect(state.combat!.bossPending).toBe(true);
+        expect(state.combat!.phase.type).toBe('boss');
+        const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+        expect(state.combat!.playerHp).toBe(maxHp);
+        expect(state.character.currentHp).toBe(maxHp);
       });
 
       it('player survives with 1 HP when player dies to DoT but kills last enemy with direct attack in same step', () => {
@@ -651,10 +655,12 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // D14: Player wins tie, survives with 1 HP; bossPending
-        expect(state.combat!.playerHp).toBe(1);
+        // D14 + D18: Player wins tie, not defeated; boss spawned; HP fully restored to maxHp
         expect(state.combat!.playerDefeated).toBe(false);
-        expect(state.combat!.bossPending).toBe(true);
+        expect(state.combat!.phase.type).toBe('boss');
+        const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+        expect(state.combat!.playerHp).toBe(maxHp);
+        expect(state.character.currentHp).toBe(maxHp);
       });
     });
 
@@ -997,13 +1003,15 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // D14: Player wins tie, survives with 1 HP
-        expect(state.combat!.playerHp).toBe(1);
+        // D14 + D18: Player wins tie, not defeated; wave advanced, HP restored to maxHp
         expect(state.combat!.playerDefeated).toBe(false);
         // Wave advanced to wave 1 (next wave spawned)
         expect(state.combat!.waveIndex).toBe(1);
         expect(state.combat!.enemies.length).toBe(1);
-        expect(state.combat!.bossPending).toBe(false);
+        expect(state.combat!.phase.type).toBe('active');
+        const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+        expect(state.combat!.playerHp).toBe(maxHp);
+        expect(state.character.currentHp).toBe(maxHp);
       });
 
       it('non-final wave cleared by player attack in same step player DoT is lethal: player survives at 1 HP', () => {
@@ -1065,16 +1073,18 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // D14: Player wins tie, survives with 1 HP
-        expect(state.combat!.playerHp).toBe(1);
+        // D14 + D18: Player wins tie, not defeated; wave advanced, HP restored to maxHp
         expect(state.combat!.playerDefeated).toBe(false);
         // Wave advanced to wave 1
         expect(state.combat!.waveIndex).toBe(1);
         expect(state.combat!.enemies.length).toBe(1);
-        expect(state.combat!.bossPending).toBe(false);
+        expect(state.combat!.phase.type).toBe('active');
+        const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+        expect(state.combat!.playerHp).toBe(maxHp);
+        expect(state.character.currentHp).toBe(maxHp);
       });
 
-      it('regression: final wave tie still gives bossPending and 1 HP (DoT case)', () => {
+      it('regression: final wave tie spawns boss with HP at maxHp (DoT case)', () => {
         const enemy: EnemyDef = {
           id: 'tie-final-dot',
           name: 'Tie Enemy',
@@ -1135,13 +1145,15 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // Regression: D14 still works on final wave
-        expect(state.combat!.playerHp).toBe(1);
+        // Regression: D14 + D18 work on final wave; boss spawned, HP at maxHp
         expect(state.combat!.playerDefeated).toBe(false);
-        expect(state.combat!.bossPending).toBe(true);
+        expect(state.combat!.phase.type).toBe('boss');
+        const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+        expect(state.combat!.playerHp).toBe(maxHp);
+        expect(state.character.currentHp).toBe(maxHp);
       });
 
-      it('regression: final wave tie still gives bossPending and 1 HP (attack case)', () => {
+      it('regression: final wave tie spawns boss with HP at maxHp (attack case)', () => {
         const enemy: EnemyDef = {
           id: 'tie-final-attack',
           name: 'Tie Enemy',
@@ -1196,10 +1208,12 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // Regression: D14 still works on final wave with attack
-        expect(state.combat!.playerHp).toBe(1);
+        // Regression: D14 + D18 work on final wave with attack; boss spawned, HP at maxHp
         expect(state.combat!.playerDefeated).toBe(false);
-        expect(state.combat!.bossPending).toBe(true);
+        expect(state.combat!.phase.type).toBe('boss');
+        const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+        expect(state.combat!.playerHp).toBe(maxHp);
+        expect(state.character.currentHp).toBe(maxHp);
       });
 
       it('regression: lethal DoT with enemies still alive after step defeats player', () => {
@@ -1343,7 +1357,6 @@ describe('Fix 3: Coverage for startCombat and error paths', () => {
         playerAttackTimerMs: 0,
         playerHp: 100,
         playerEffects: [],
-        bossPending: false,
         playerDefeated: false,
         phase: { type: 'active' },
         log: [],

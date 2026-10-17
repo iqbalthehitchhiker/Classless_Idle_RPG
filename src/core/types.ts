@@ -65,7 +65,7 @@ export interface EnemyState {
 
 export type CombatPhase =
   | { readonly type: 'active' }
-  | { readonly type: 'bossPending' }
+  | { readonly type: 'boss' }
   | { readonly type: 'playerDefeated' }
   | { readonly type: 'recovery'; readonly remainingMs: number } // post-defeat pause (D1)
   | { readonly type: 'complete' };                              // unused in Phase 1
@@ -80,7 +80,6 @@ export interface CombatState {
   readonly playerAttackTimerMs: number;     // accumulated attack time in integer milliseconds
   readonly playerHp: number;
   readonly playerEffects: readonly EffectInstance[]; // Active effects on player
-  readonly bossPending: boolean;
   readonly playerDefeated: boolean;
   readonly phase: CombatPhase;
   readonly log: readonly string[];          // newest entries appended, capped at MAX_LOG_ENTRIES
@@ -99,6 +98,10 @@ export interface GameState {
   readonly combat: CombatState | null;
   readonly activeActivity: ActivityType | null;
   readonly unlockedStages: readonly string[];
+  readonly clearedStages: readonly string[];
+  readonly settings: {
+    readonly autoProgress: boolean;
+  };
   readonly savedAt: number | null;    // Unix ms timestamp, written by persistence layer
   readonly remainderMs: number;       // integer, 0–99, sub-step carry for advance()
 }

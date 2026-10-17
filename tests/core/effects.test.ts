@@ -304,11 +304,12 @@ describe('Timed Effects System (M1-08)', () => {
     }
 
     // Enemy was killed by DoT!
-    expect(state.combat!.enemies.length).toBe(0);
+    expect(state.combat!.enemies.length).toBe(1); // Boss spawned
     // XP awarded once (25 XP)
     expect(state.character.xp).toBe(25);
-    // Boss pending reached since wave is cleared
-    expect(state.combat!.bossPending).toBe(true);
+    // Boss spawned since final regular wave is cleared
+    expect(state.combat!.phase.type).toBe('boss');
+    expect(state.combat!.enemies[0].defId).toBe('goblin-chief');
 
     // Subsequent steps do not award more XP
     state = stepCombat(state, 1.0, { ...defaultConfig, content: customContent });
@@ -444,8 +445,10 @@ describe('Timed Effects System (M1-08)', () => {
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
-    // Enemy is removed, so its stun effect is also gone
-    expect(state.combat!.enemies.length).toBe(0);
+    // Enemy is removed, boss spawned (since this was the last wave)
+    expect(state.combat!.enemies.length).toBe(1);
+    expect(state.combat!.phase.type).toBe('boss');
+    // The stun effect on the original enemy is gone
   });
 
   // -------------------------------------------------------------------------

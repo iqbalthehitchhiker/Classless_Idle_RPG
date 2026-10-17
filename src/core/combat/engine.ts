@@ -100,7 +100,6 @@ export function startCombat(
     playerAttackTimerMs: 0,
     playerHp,
     playerEffects: [],
-    bossPending: false,
     playerDefeated: false,
     phase: { type: 'active' },
     log: [],
@@ -117,20 +116,140 @@ export function startCombat(
 // Hooks (M1-08 Effects / M1-09 Boss / M1-10 Defeat)
 // ---------------------------------------------------------------------------
 
-/**
- * Hook called when player reaches 0 HP.
- * In M1-07/M1-08 this preserves playerDefeated: true without retreat.
- */
-export function onPlayerDefeated(state: GameState): GameState {
-  return state;
-}
+// ---------------------------------------------------------------------------
+// Wave Clear and Progression Logic (M1-09, D18, D17, D2)
+// ---------------------------------------------------------------------------
 
 /**
- * Hook called when all regular waves in a stage are cleared.
- * In M1-07/M1-08 this marks bossPending: true (boss spawning is deferred to M1-09).
+ * Applies D18 heal (full HP restore) and decides what happens next:
+ * - next regular wave
+ * - boss spawn
+ * - stage completion + farming loop / auto-progress
+ *
+ * Returns updated state with new wave/boss spawned or stage reset.
  */
-export function onBossPending(state: GameState): GameState {
-  return state;
+function handleWaveClear(
+  state: GameState,
+  waveIndex: number,
+  isBossKill: boolean,
+  config: GameConfig,
+): GameState {
+  const combat = state.combat!;
+  const stage = config.content.stages.get(combat.stageId);
+  if (!stage) {
+    return state;
+  }
+
+  // D18: Heal player to full maxHp after XP (so level-ups count)
+  const maxHp = deriveStats(state, config).maxHp;
+
+  if (!isBossKill) {
+    // Regular wave cleared
+    const nextWaveIndex = add(waveIndex, 1);
+    if (nextWaveIndex < stage.waves.length) {
+      // Spawn next regular wave
+      const nextEnemies = spawnWaveEnemies(stage.waves[nextWaveIndex], config.content);
+      return {
+        ...state,
+        combat: {
+          ...combat,
+          waveIndex: nextWaveIndex,
+          enemies: nextEnemies,
+          playerHp: maxHp,
+          phase: { type: 'active' },
+        },
+        character: {
+          ...state.character,
+          currentHp: maxHp,
+        },
+      };
+    } else {
+      // Final regular wave cleared -> spawn boss
+      const bossEnemy = config.content.enemies.get(stage.boss);
+      if (!bossEnemy) {
+        // Missing boss definition: stay on cleared wave
+        return state;
+      }
+      const bossEnemyState: EnemyState = {
+        defId: bossEnemy.id,
+        hp: bossEnemy.maxHp,
+        maxHp: bossEnemy.maxHp,
+        attackTimerMs: 0,
+        effects: [],
+      };
+      return {
+        ...state,
+        combat: {
+          ...combat,
+          enemies: [bossEnemyState],
+          playerHp: maxHp,
+          phase: { type: 'boss' },
+        },
+        character: {
+          ...state.character,
+          currentHp: maxHp,
+        },
+      };
+    }
+  } else {
+    // Boss kill: award bonus XP (D17), unlock stage (idempotent), add to clearedStages, then reset or auto-progress
+    let updatedState = awardXp(state, stage.bossXpBonus, config.levelCurve);
+    
+    // Unlock next stage if present (idempotent)
+    if (stage.unlocksStageId && !updatedState.unlockedStages.includes(stage.unlocksStageId)) {
+      updatedState = {
+        ...updatedState,
+        unlockedStages: [...updatedState.unlockedStages, stage.unlocksStageId],
+      };
+    }
+
+    // Add to clearedStages (idempotent, no duplicates)
+    if (!updatedState.clearedStages.includes(combat.stageId)) {
+      updatedState = {
+        ...updatedState,
+        clearedStages: [...updatedState.clearedStages, combat.stageId],
+      };
+    }
+
+    // D18 heal after boss kill
+    const maxHpAfterBossBonus = deriveStats(updatedState, config).maxHp;
+
+    // Farming loop (D2) or auto-progress
+    let nextStageId = combat.stageId;
+    if (updatedState.settings.autoProgress && stage.unlocksStageId && updatedState.unlockedStages.includes(stage.unlocksStageId)) {
+      nextStageId = stage.unlocksStageId;
+    }
+
+    const nextStage = config.content.stages.get(nextStageId);
+    if (!nextStage) {
+      // Missing stage: keep player in combat but stop
+      return {
+        ...updatedState,
+        character: {
+          ...updatedState.character,
+          currentHp: maxHpAfterBossBonus,
+        },
+      };
+    }
+
+    // Reset to wave 0 of the target stage
+    const freshEnemies = spawnWaveEnemies(nextStage.waves[0], config.content);
+    return {
+      ...updatedState,
+      combat: {
+        ...combat,
+        stageId: nextStageId,
+        waveIndex: 0,
+        enemies: freshEnemies,
+        playerHp: maxHpAfterBossBonus,
+        phase: { type: 'active' },
+      },
+      character: {
+        ...updatedState.character,
+        currentHp: maxHpAfterBossBonus,
+      },
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -153,8 +272,8 @@ export function stepCombat(
   const combat = state.combat;
   const contentInstance = config.content;
 
-  // If already defeated or waiting for boss, do not process combat
-  if (combat.playerDefeated || combat.bossPending) {
+  // If already defeated, do not process combat
+  if (combat.playerDefeated) {
     return state;
   }
 
@@ -174,7 +293,7 @@ export function stepCombat(
         currentHp: 0,
       },
     };
-    return onPlayerDefeated(updatedState);
+    return updatedState;
   }
 
   const dtMs = round(mul(dt, 1000));
@@ -184,11 +303,10 @@ export function stepCombat(
   let playerHp = combat.playerHp;
   let playerEffects = combat.playerEffects ?? [];
   let waveIndex = combat.waveIndex;
-  let bossPending: boolean = false;
   let playerDefeated: boolean = false;
   let phase: CombatPhase = combat.phase;
   const hadEnemiesAtStart = currentEnemies.length > 0;
-  let waveClearedThisStep: boolean = false;
+  let isBossPhase = phase.type === 'boss';
 
   // -------------------------------------------------------------------------
   // 0. Tick Active Effects (DoT & Expired Duration)
@@ -224,23 +342,6 @@ export function stepCombat(
   }
   let currentEnemiesWorking: EnemyWorkingRecord[] = survivingEnemiesAfterDot;
 
-  // Check wave advancement if DoT cleared the wave
-  if (currentEnemiesWorking.length === 0 && hadEnemiesAtStart) {
-    waveClearedThisStep = true;
-    const stage = contentInstance.stages.get(combat.stageId);
-    if (stage) {
-      const nextWaveIndex = add(waveIndex, 1);
-      if (nextWaveIndex < stage.waves.length) {
-        waveIndex = nextWaveIndex;
-        const freshEnemies = spawnWaveEnemies(stage.waves[waveIndex], contentInstance);
-        currentEnemiesWorking = freshEnemies.map((e) => ({ ...e, stunnedAtStart: false }));
-      } else {
-        bossPending = true;
-        phase = { type: 'bossPending' };
-      }
-    }
-  }
-
   // Player DoT
   const playerTickResult = tickEffectInstances(playerEffects, dt, contentInstance);
   playerEffects = playerTickResult.effects;
@@ -250,22 +351,33 @@ export function stepCombat(
     playerHp = clamp(sub(playerHp, playerTickResult.totalDamage), 0, maxHp);
 
     if (playerHp <= 0) {
-      // D14: If the player and the last enemy of the current wave would both die in the same step, the player wins.
-      if (waveClearedThisStep) {
-        playerHp = 1; // Player survives tie with 1 HP (DoT-death tie)
-      } else {
-        // Player took lethal DoT, but may still attack and clear wave in this step (direct-attack tie)
-        playerLethalDoT = true;
-      }
+      // Player took lethal DoT; check for tie later
+      playerLethalDoT = true;
     }
   }
 
+  // Check wave cleared after DoT (D14 + D18)
+  if (currentEnemiesWorking.length === 0 && hadEnemiesAtStart) {
+    // D14: Tie - player survives
+    if (playerLethalDoT) {
+      playerLethalDoT = false; // Cancel defeat
+    }
+    
+    currentState = handleWaveClear(currentState, waveIndex, isBossPhase, config);
+    // The helper returns a new state with updated combat, so extract the new values
+    currentEnemiesWorking = (currentState.combat!.enemies as EnemyState[]).map((e) => ({ ...e, stunnedAtStart: false }));
+    waveIndex = currentState.combat!.waveIndex;
+    phase = currentState.combat!.phase;
+    isBossPhase = phase.type === 'boss';
+    playerHp = currentState.combat!.playerHp; // D18: HP fully restored
+  }
+
   // -------------------------------------------------------------------------
-  // 1. Player Attack Cycle (if not stunned, defeated, or bossPending)
+  // 1. Player Attack Cycle (if not stunned or defeated)
   // -------------------------------------------------------------------------
   let playerTimerMs = combat.playerAttackTimerMs;
 
-  if (!playerDefeated && !bossPending) {
+  if (!playerDefeated) {
     const playerStunned = playerStunnedAtStart || isStunned(playerEffects, contentInstance);
 
     if (!playerStunned) {
@@ -321,42 +433,35 @@ export function stepCombat(
       }
 
       // Check wave advancement after player attacks
-      if (currentEnemiesWorking.length === 0) {
-        waveClearedThisStep = true;
-        const stage = contentInstance.stages.get(combat.stageId);
-        if (stage) {
-          const nextWaveIndex = add(waveIndex, 1);
-          if (nextWaveIndex < stage.waves.length) {
-            waveIndex = nextWaveIndex;
-            const freshEnemies = spawnWaveEnemies(stage.waves[waveIndex], contentInstance);
-            currentEnemiesWorking = freshEnemies.map((e) => ({ ...e, stunnedAtStart: false }));
-          } else {
-            // Cleared final regular wave -> boss pending
-            bossPending = true;
-            phase = { type: 'bossPending' };
-          }
+      if (currentEnemiesWorking.length === 0 && hadEnemiesAtStart) {
+        // D14: Tie - player survives
+        if (playerLethalDoT) {
+          playerLethalDoT = false; // Cancel defeat
         }
+        
+        currentState = handleWaveClear(currentState, waveIndex, isBossPhase, config);
+        currentEnemiesWorking = (currentState.combat!.enemies as EnemyState[]).map((e) => ({ ...e, stunnedAtStart: false }));
+        waveIndex = currentState.combat!.waveIndex;
+        phase = currentState.combat!.phase;
+        isBossPhase = phase.type === 'boss';
+        playerHp = currentState.combat!.playerHp; // D18: HP fully restored
       }
     }
     // If playerStunned: playerTimerMs is NOT advanced, attacks cannot fire
   }
 
-  // If player took lethal DoT, resolve D14 tie or defeat after player's attack cycle
+  // If player took lethal DoT and no tie occurred, defeat the player
   if (playerLethalDoT) {
-    if (waveClearedThisStep) {
-      playerHp = 1; // Player survives tie with 1 HP (direct-attack tie)
-    } else {
-      playerHp = 0;
-      playerDefeated = true;
-      playerEffects = [];
-      phase = { type: 'playerDefeated' };
-    }
+    playerHp = 0;
+    playerDefeated = true;
+    playerEffects = [];
+    phase = { type: 'playerDefeated' };
   }
 
   // -------------------------------------------------------------------------
-  // 2. Enemy Attack Cycle (if not boss pending and player still alive)
+  // 2. Enemy Attack Cycle (if player still alive)
   // -------------------------------------------------------------------------
-  if (!playerDefeated && !bossPending && currentEnemiesWorking.length > 0) {
+  if (!playerDefeated && currentEnemiesWorking.length > 0) {
     const updatedEnemies: EnemyWorkingRecord[] = [];
 
     for (const enemy of currentEnemiesWorking) {
@@ -414,25 +519,24 @@ export function stepCombat(
   }
 
   // Strip the stunnedAtStart flag to get clean EnemyState array
-  currentEnemies = currentEnemiesWorking.map(({ stunnedAtStart, ...rest }) => rest);
+  const finalEnemies = currentEnemiesWorking.map(({ stunnedAtStart, ...rest }) => rest);
 
   // -------------------------------------------------------------------------
   // 3. Assemble Updated GameState
   // -------------------------------------------------------------------------
   const nextCombat: CombatState = {
-    stageId: combat.stageId,
+    stageId: currentState.combat!.stageId,
     waveIndex,
-    enemies: currentEnemies,
+    enemies: finalEnemies,
     playerAttackTimerMs: playerTimerMs,
     playerHp,
     playerEffects,
-    bossPending,
     playerDefeated,
     phase,
     log: combat.log,
   };
 
-  let resultState: GameState = {
+  const resultState: GameState = {
     ...currentState,
     rng: currentRng,
     combat: nextCombat,
@@ -441,12 +545,6 @@ export function stepCombat(
       currentHp: playerHp,
     },
   };
-
-  if (playerDefeated) {
-    resultState = onPlayerDefeated(resultState);
-  } else if (bossPending) {
-    resultState = onBossPending(resultState);
-  }
 
   return resultState;
 }

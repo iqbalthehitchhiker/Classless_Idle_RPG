@@ -19,8 +19,6 @@ export {
   stepCombat,
   startCombat,
   spawnWaveEnemies,
-  onPlayerDefeated,
-  onBossPending,
   applyEffect,
   tickEffects,
   isStunned,

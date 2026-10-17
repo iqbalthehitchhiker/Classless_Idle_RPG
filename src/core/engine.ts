@@ -48,6 +48,10 @@ export function createInitialState(
     combat: null,
     activeActivity: null,
     unlockedStages: [config.content.startingStageId],
+    clearedStages: [],
+    settings: {
+      autoProgress: false,
+    },
     savedAt: null,
     remainderMs: 0,
   } satisfies GameState;
