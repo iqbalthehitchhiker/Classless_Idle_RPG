@@ -28,7 +28,7 @@ Scope reference: SRS section 6, Phase 1. Decisions: `docs/decisions.md`.
 - [ ] **M1-13 Persistence.** Zod save schema with `version: 1`, `savedAt`. Autosave every 10 s and on tab hide. Load validates first; on failure show an error and offer reset without overwriting the bad save. Migration function scaffold (v1 identity). Tests: round trip, malformed, wrong version.
 
 ### UI
-- [ ] **M1-14 Minimal UI.** Character panel (level, XP bar, HP, stats), combat panel (stage, wave, enemy HP bars, active effects, log), controls (start/stop, autoProgress). Fixed UI loop calls `advance` with real elapsed time. UI holds no rules.
+- [x] **M1-14 Minimal UI.** Character panel (level, XP bar, HP, stats), combat panel (stage, wave, enemy HP bars, active effects, log), controls (start/stop, autoProgress). Fixed UI loop calls `advance` with real elapsed time. UI holds no rules.
 - [ ] **M1-15 Balance pass.** Tune data so a new player clears the boss in roughly 10-15 minutes with at least one defeat on the way. Data changes only.
 
 ### Polish (optional)

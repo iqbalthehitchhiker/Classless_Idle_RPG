@@ -21,4 +21,5 @@ Status: RESOLVED = implement as written. OPEN = needs owner input; do not guess.
 | D15 | Level-up mid-fight | Max HP increases, current HP unchanged. Superseded at the moment of a wave clear by D18. | RESOLVED |
 | D17 | Boss rewards | Boss XP bonus is awarded on every boss kill. The stage unlock happens only on the first kill. | RESOLVED |
 | D18 | Wave-clear heal | When a wave is cleared (next wave, boss spawn, or stage completion/reset), player HP is fully restored to derived maxHp. `combat.playerHp` and `character.currentHp` update together. maxHp is computed from the latest state after the clearing kill's XP, so a mid-step level-up counts. Player effects are not cleared (D16). | RESOLVED |
-
+| D19 | What a save contains | Progression only: character, unlockedStages, clearedStages, settings, elapsedMs, rng, log, activeActivity and its stageId. Combat runtime (enemies, effects, timers) is NOT saved. On load, an active combat restarts at wave 0 of the saved stage with full HP. | RESOLVED |
+| D20 | Bad saves | A save that fails validation is never overwritten. It is copied to a separate "corrupt" key, the player sees an error, and autosave stays off until the player picks Reset. | RESOLVED |
