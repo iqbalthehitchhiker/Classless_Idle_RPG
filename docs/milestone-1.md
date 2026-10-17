@@ -24,7 +24,7 @@ Scope reference: SRS section 6, Phase 1. Decisions: `docs/decisions.md`.
 - [x] **M1-11 Rewards.** XP per enemy, boss bonus XP, results log capped at N entries (NFR-009).
 
 ### Activities and persistence
-- [ ] **M1-12 Activity framework.** `Activity` interface (`id`, `requirements`, `advance`, outputs). Combat is the first implementation. `dispatch({type:'startActivity'|'stopActivity'}, config)`. Single active activity.
+- [x] **M1-12 Activity framework.** `Activity` interface (`id`, `requirements`, `advance`, outputs). Combat is the first implementation. `dispatch({type:'startActivity'|'stopActivity'}, config)`. Single active activity.
 - [ ] **M1-13 Persistence.** Zod save schema with `version: 1`, `savedAt`. Autosave every 10 s and on tab hide. Load validates first; on failure show an error and offer reset without overwriting the bad save. Migration function scaffold (v1 identity). Tests: round trip, malformed, wrong version.
 
 ### UI
