@@ -6,6 +6,7 @@
   let showDebug = $state(false);
   let timeSinceLastSave = $state(0);
   let showResetConfirm = $state(false);
+  let showResetSaveConfirm = $state(false);
   
   // Update "time since last save" every second
   $effect(() => {
@@ -45,6 +46,11 @@
     resetAndClearError();
     showResetConfirm = false;
   }
+  
+  function handleResetSaveConfirm() {
+    resetAndClearError();
+    showResetSaveConfirm = false;
+  }
 </script>
 
 <main>
@@ -79,6 +85,13 @@
       <button onclick={handleSaveNow} disabled={$gameStore.loadError !== null}>Save now</button>
       {#if $gameStore.lastSavedAt !== null}
         <span style="font-size: 0.9rem;">Last saved: {timeSinceLastSave}s ago</span>
+      {/if}
+      {#if showResetSaveConfirm}
+        <span style="font-size: 0.9rem; color: #e24a4a;">Delete your save and start over?</span>
+        <button onclick={handleResetSaveConfirm} style="background: #e24a4a;">Yes</button>
+        <button onclick={() => showResetSaveConfirm = false}>No</button>
+      {:else}
+        <button onclick={() => showResetSaveConfirm = true}>Reset save</button>
       {/if}
     </div>
   </div>
