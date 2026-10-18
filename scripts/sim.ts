@@ -3,7 +3,7 @@
  * Usage: npx tsx scripts/sim.ts [seconds] [seed]
  * Defaults: 300 seconds, seed 1
  */
-import { createInitialState, advance, dispatch } from '../src/core/engine.js';
+import { createInitialState, advance, dispatch, canChallengeBoss } from '../src/core/index.js';
 import { defaultConfig } from '../src/data/index.js';
 import type { LogEntry } from '../src/core/types.js';
 
@@ -39,6 +39,11 @@ let xpAtStop: number | null = null;
 let clearedStagesAtStop: readonly string[] | null = null;
 
 while (time < totalSeconds) {
+  // Challenge boss if available (D22)
+  if (state.combat && canChallengeBoss(state, defaultConfig)) {
+    state = dispatch(state, { type: 'challengeBoss' }, defaultConfig);
+  }
+  
   state = advance(state, STEP, defaultConfig);
   time += STEP;
 
@@ -103,6 +108,7 @@ console.log(`Enemy kills: ${enemyKills}`);
 console.log(`Level ups: ${levelUps}`);
 console.log(`Stage unlocks: ${stageUnlocks}`);
 console.log(`Final stage: ${state.combat?.stageId || 'none'}`);
+console.log(`Final wavesCleared counter: ${state.combat?.wavesCleared ?? 0}`);
 console.log(`Max log length: ${maxLogLength}`);
 
 // Report on preserved progress across stop/start

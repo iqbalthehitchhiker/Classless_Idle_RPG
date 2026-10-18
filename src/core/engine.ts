@@ -16,7 +16,7 @@
  */
 
 import { deriveStatsForLevel } from './stats.js';
-import { startCombat } from './combat/index.js';
+import { startCombat, challengeBoss } from './combat/index.js';
 import type { GameConfig, GameState, Action } from './types.js';
 import { getActivity } from './activities.js';
 
@@ -187,6 +187,10 @@ export function dispatch(state: GameState, action: Action, config: GameConfig): 
           autoProgress: action.enabled,
         },
       };
+    }
+
+    case 'challengeBoss': {
+      return challengeBoss(state, config);
     }
 
     default: {

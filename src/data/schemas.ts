@@ -90,6 +90,7 @@ export const stageDefSchema = z
     waves: z.array(z.string().min(1)).min(1),
     boss: z.string().min(1),
     bossXpBonus: z.number().nonnegative(),
+    minWavesBeforeBoss: z.number().int().positive(),
     unlocksStageId: z.string().min(1).optional(),
   })
   .strict();

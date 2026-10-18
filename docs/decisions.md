@@ -5,7 +5,7 @@ Status: RESOLVED = implement as written. OPEN = needs owner input; do not guess.
 | # | Topic | Decision | Status |
 |---|---|---|---|
 | D1 | Player defeat | Retreat one wave (min wave 1), full heal, 3 s recovery pause. Values in config (`defeat.retreatWaves`, `defeat.pauseSeconds`). Boss defeat sends player to the stage's last wave. | RESOLVED |
-| D2 | Combat continuation | After clearing the boss, the next stage unlocks and the player stays on the current stage, looping from wave 1 (farming). `autoProgress` toggle (default off) moves to the next stage on boss kill. | RESOLVED |
+ D2 | Combat continuation | Regular waves loop endlessly for grinding. The boss is entered only by the player pressing Challenge Boss. After a boss kill, return to the wave loop. `autoProgress` (default off) moves to the next stage on boss kill. | RESOLVED |
 | D3 | Combat grants proficiency | Deferred to Phase 2 (no disciplines exist in Phase 1). Plan: small trickle, training 3-5x faster. | DEFERRED |
 | D4 | Big numbers | Native numbers. All arithmetic through `core/num.ts`. | RESOLVED |
 | D5 | UI framework | Svelte. | RESOLVED |
@@ -24,3 +24,5 @@ Status: RESOLVED = implement as written. OPEN = needs owner input; do not guess.
 | D19 | What a save contains | Progression only: character, unlockedStages, clearedStages, settings, elapsedMs, rng, log, activeActivity and its stageId. Combat runtime (enemies, effects, timers) is NOT saved. On load, an active combat restarts at wave 0 of the saved stage with full HP. | RESOLVED |
 | D20 | Bad saves | A save that fails validation is never overwritten. It is copied to a separate "corrupt" key, the player sees an error, and autosave stays off until the player picks Reset. | RESOLVED |
 | D21 | Anti-grind progression | Stage progress should not depend on level alone. Preferred tools: (1) optional `requirements` on stages (proficiency, knowledge, gear), (2) enemy scaling that outpaces level-only power, (3) diminishing XP when overleveled. Hard gates only where needed. Not implemented in Phase 1; revisit in Phase 2 with the skill tree. | OPEN |
+| D22 | Challenge Boss availability | The button is enabled when the stage is already in clearedStages, OR the wave loop has cleared at least `minWavesBeforeBoss` waves this session (per-stage data, starter value 5 for testing; real target 50). The counter resets when combat is started or stopped, and is not reset by player death. A defeat in the boss fight returns the player to the wave loop at its first wave, after the recovery pause. | RESOLVED |
+| D23 | Level-up stat bonuses | Leveling directly raises only max HP and Attack. Attack speed and crit chance do not scale with level; they come from gear, items and other systems. | RESOLVED |

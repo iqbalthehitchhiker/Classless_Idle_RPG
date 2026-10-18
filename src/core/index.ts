@@ -23,6 +23,7 @@ export {
   applyEffect,
   tickEffects,
   isStunned,
+  canChallengeBoss,
 } from './combat/index.js';
 export type { Activity } from './activity.js';
 export { getActivity } from './activities.js';

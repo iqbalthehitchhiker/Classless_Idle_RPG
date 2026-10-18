@@ -63,11 +63,11 @@ export const characterStats: CharacterStatsData = characterStatsSchema.parse({
     critDamage: 1.5,
   },
   growthPerLevel: {
-    maxHp: 1.08,
-    attack: 1.07,
-    attackRate: 1.02,
-    critChance: 1.04,
-    critDamage: 1.01,
+    maxHp: 1.08,      // 8% per level
+    attack: 1.07,     // 7% per level
+    attackRate: 1.0,  // 0% per level (D23)
+    critChance: 1.0,  // 0% per level (D23)
+    critDamage: 1.01, // 1% per level (unchanged)
   },
   startingLevel: 1,
 });

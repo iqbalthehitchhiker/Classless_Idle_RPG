@@ -80,6 +80,7 @@ export interface CombatState {
   readonly playerHp: number;
   readonly playerEffects: readonly EffectInstance[]; // Active effects on player
   readonly phase: CombatPhase;
+  readonly wavesCleared: number;            // waves cleared counter for D22 boss entry
 }
 
 // ---------------------------------------------------------------------------
@@ -134,4 +135,5 @@ export type Action =
   | { readonly type: 'stopCombat' }
   | { readonly type: 'startActivity'; readonly activityId: string; readonly params: Record<string, unknown> }
   | { readonly type: 'stopActivity' }
-  | { readonly type: 'setAutoProgress'; readonly enabled: boolean };
+  | { readonly type: 'setAutoProgress'; readonly enabled: boolean }
+  | { readonly type: 'challengeBoss' };

@@ -13,6 +13,7 @@ export const starterStages: StageDef[] = [
     waves: ['wave-1', 'wave-2', 'wave-3'],
     boss: 'goblin-chief',
     bossXpBonus: 50,
+    minWavesBeforeBoss: 5,
     unlocksStageId: 'stage-2',
   },
   // PLACEHOLDER STAGE: Resolves stage-1's unlocksStageId reference.
@@ -23,5 +24,6 @@ export const starterStages: StageDef[] = [
     waves: ['wave-1'],
     boss: 'goblin-chief',
     bossXpBonus: 100,
+    minWavesBeforeBoss: 5,
   },
 ];

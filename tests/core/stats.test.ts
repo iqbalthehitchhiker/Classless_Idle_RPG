@@ -41,25 +41,29 @@ describe('deriveStatsForLevel', () => {
     expect(deriveStatsForLevel(7, defaultConfig.character)).toEqual(deriveStatsForLevel(7, defaultConfig.character));
   });
 
-  it('grows every statistic monotonically with level', () => {
+  it('grows HP, attack, and critDamage monotonically with level (D23: attackRate and critChance do not grow)', () => {
     const levels = [1, 2, 3, 10, 25, 60];
     for (let i = 1; i < levels.length; i += 1) {
       const previous = deriveStatsForLevel(levels[i - 1], defaultConfig.character);
       const current = deriveStatsForLevel(levels[i], defaultConfig.character);
-      for (const key of ['maxHp', 'attack', 'attackRate', 'critChance', 'critDamage'] as const) {
+      // D23: Only HP, attack, and critDamage grow with level
+      for (const key of ['maxHp', 'attack', 'critDamage'] as const) {
         expect(current[key]).toBeGreaterThan(previous[key]);
       }
+      // D23: attackRate and critChance do not grow with level
+      expect(current.attackRate).toBe(previous.attackRate);
+      expect(current.critChance).toBe(previous.critChance);
     }
   });
 
-  it('saturates crit chance at certainty instead of exceeding 1', () => {
-    for (const level of [40, 200, 5000]) {
+  it('keeps crit chance constant across levels (D23)', () => {
+    const baseStats = deriveStatsForLevel(1, defaultConfig.character);
+    for (const level of [2, 10, 40, 200, 5000]) {
       const stats = deriveStatsForLevel(level, defaultConfig.character);
+      expect(stats.critChance).toBe(baseStats.critChance);
       expect(stats.critChance).toBeLessThanOrEqual(1);
       expect(stats.critChance).toBeGreaterThan(0);
     }
-    // Far enough along, the multiplicative growth necessarily hits the cap.
-    expect(deriveStatsForLevel(5000, defaultConfig.character).critChance).toBe(1);
   });
 
   it('keeps crit damage at or above 1x', () => {

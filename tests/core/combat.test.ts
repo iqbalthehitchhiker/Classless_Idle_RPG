@@ -71,6 +71,7 @@ describe('Combat Engine (M1-07)', () => {
       waves: ['dummy-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
     };
     const customContent = makeCustomContent({
       enemies: [dummyEnemy],
@@ -136,6 +137,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['sb-wave'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
         };
         const customContent = makeCustomContent({
           enemies: [dummyEnemy],
@@ -187,6 +189,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['sbc-wave'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
         };
         const customContent = makeCustomContent({
           enemies: [dummyEnemy],
@@ -253,6 +256,7 @@ describe('Combat Engine (M1-07)', () => {
       waves: ['weak-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
     };
     const customContent = makeCustomContent({
       enemies: [weakEnemy],
@@ -298,6 +302,7 @@ describe('Combat Engine (M1-07)', () => {
       waves: ['w1', 'w2'],
       boss: 'goblin-chief',
       bossXpBonus: 20,
+        minWavesBeforeBoss: 5,
     };
     const customContent = makeCustomContent({
       enemies: [weakEnemy],
@@ -360,6 +365,7 @@ describe('Combat Engine (M1-07)', () => {
       waves: ['lethal-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
     };
     const customContent = makeCustomContent({
       enemies: [lethalEnemy],
@@ -413,6 +419,7 @@ describe('Combat Engine (M1-07)', () => {
       waves: ['xp-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
     };
     const customContent = makeCustomContent({
       enemies: [xpEnemy],
@@ -482,6 +489,7 @@ describe('Combat Engine (M1-07)', () => {
         waves: ['w1', 'w2'],
         boss: 'goblin-chief',
         bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
       };
       const customContent = makeCustomContent({
         enemies: [dummyEnemy],
@@ -548,6 +556,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['tie-w1'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
         };
         const customContent = makeCustomContent({
           enemies: [dummyEnemy],
@@ -618,6 +627,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['tie-w2'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
         };
         const customContent = makeCustomContent({
           enemies: [dummyEnemy],
@@ -685,6 +695,7 @@ describe('Combat Engine (M1-07)', () => {
         waves: ['fast-w'],
         boss: 'goblin-chief',
         bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
       };
       const customContent = makeCustomContent({
         enemies: [fastEnemy],
@@ -743,6 +754,7 @@ describe('Combat Engine (M1-07)', () => {
         waves: ['multi-w'],
         boss: 'goblin-chief',
         bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
       };
       const customContent = makeCustomContent({
         enemies: [mob1, mob2],
@@ -816,6 +828,7 @@ describe('Combat Engine (M1-07)', () => {
         waves: ['clean-w1', 'clean-w2'],
         boss: 'goblin-chief',
         bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
       };
       const customContent = makeCustomContent({
         enemies: [weakEnemy],
@@ -958,6 +971,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['nf-w1', 'nf-w2'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
         };
         const customContent = makeCustomContent({
           enemies: [enemy],
@@ -1034,6 +1048,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['nf-a-w1', 'nf-a-w2'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
         };
         const customContent = makeCustomContent({
           enemies: [enemy],
@@ -1103,6 +1118,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['f-w1'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
         };
         const customContent = makeCustomContent({
           enemies: [enemy],
@@ -1172,6 +1188,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['f-a-w1'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
         };
         const customContent = makeCustomContent({
           enemies: [enemy],
@@ -1235,6 +1252,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['surv-w1'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
         };
         const customContent = makeCustomContent({
           enemies: [enemy],
@@ -1295,6 +1313,7 @@ describe('Fix 2: stunnedAtStart flag behavior', () => {
       waves: ['stun-exp-w'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
     };
     const customContent = makeCustomContent({
       enemies: [lethalEnemy],
@@ -1360,6 +1379,7 @@ describe('Fix 3: Coverage for startCombat and error paths', () => {
         playerHp: 100,
         playerEffects: [],
         phase: { type: 'active' },
+        wavesCleared: 0,
       },
     };
     // Use a hack to simulate training activity
@@ -1477,6 +1497,7 @@ describe('Fix 3: Coverage for startCombat and error paths', () => {
       waves: ['killer-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
+        minWavesBeforeBoss: 5,
     };
     const customContent = makeCustomContent({
       enemies: [lethalEnemy, harmlessEnemy],
@@ -1500,3 +1521,5 @@ describe('Fix 3: Coverage for startCombat and error paths', () => {
     expect(state.combat!.waveIndex).toBe(0);
   });
 });
+
+

@@ -107,6 +107,7 @@ export function startCombat(
     playerHp,
     playerEffects: [],
     phase: { type: 'active' },
+    wavesCleared: 0,
   };
 
   return {
@@ -117,20 +118,90 @@ export function startCombat(
 }
 
 // ---------------------------------------------------------------------------
-// Hooks (M1-08 Effects / M1-09 Boss / M1-10 Defeat)
+// Hooks (M1-08 Effects / M1-09 Boss / M1-10 Defeat / D22 Challenge Boss)
 // ---------------------------------------------------------------------------
 
+/**
+ * Checks if the boss can be challenged (D22).
+ * Returns true if:
+ * - Stage is in clearedStages, OR
+ * - wavesCleared >= stage.minWavesBeforeBoss
+ */
+export function canChallengeBoss(state: GameState, config: GameConfig): boolean {
+  if (!state.combat) return false;
+  if (state.combat.phase.type !== 'active') return false;
+  
+  const stage = config.content.stages.get(state.combat.stageId);
+  if (!stage) return false;
+  
+  // Already cleared this stage before
+  if (state.clearedStages.includes(state.combat.stageId)) {
+    return true;
+  }
+  
+  // Or cleared enough waves this session
+  return state.combat.wavesCleared >= stage.minWavesBeforeBoss;
+}
+
+/**
+ * Transitions to boss phase (D22).
+ * Only allowed when canChallengeBoss returns true.
+ */
+export function challengeBoss(state: GameState, config: GameConfig): GameState {
+  if (!canChallengeBoss(state, config)) {
+    return state;
+  }
+  
+  const combat = state.combat!;
+  const stage = config.content.stages.get(combat.stageId);
+  if (!stage) return state;
+  
+  const bossEnemy = config.content.enemies.get(stage.boss);
+  if (!bossEnemy) return state;
+  
+  // D18: heal to full HP
+  const maxHp = deriveStats(state, config).maxHp;
+  
+  // Spawn boss
+  const bossEnemyState: EnemyState = {
+    defId: bossEnemy.id,
+    hp: bossEnemy.maxHp,
+    maxHp: bossEnemy.maxHp,
+    attackTimerMs: 0,
+    effects: [],
+  };
+  
+  let updatedState = appendLog(state, {
+    tMs: state.elapsedMs,
+    type: 'bossSpawned',
+    detail: `Boss spawned: ${bossEnemy.name}`,
+  });
+  
+  return {
+    ...updatedState,
+    combat: {
+      ...combat,
+      enemies: [bossEnemyState],
+      playerHp: maxHp,
+      phase: { type: 'boss' },
+    },
+    character: {
+      ...updatedState.character,
+      currentHp: maxHp,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Wave Clear and Progression Logic (M1-09, D18, D17, D2)
+// Wave Clear and Progression Logic (M1-09, D18, D17, D2, D22)
 // ---------------------------------------------------------------------------
 
 /**
  * Applies D18 heal (full HP restore) and decides what happens next:
- * - next regular wave
- * - boss spawn
- * - stage completion + farming loop / auto-progress
+ * - Regular wave cleared: advance to next wave in loop (wrapping around)
+ * - Boss killed: return to wave loop at first wave, reset wavesCleared
  *
- * Returns updated state with new wave/boss spawned or stage reset.
+ * D2: Regular waves loop endlessly. Boss is only entered via challengeBoss action.
  */
 function handleWaveClear(
   state: GameState,
@@ -148,67 +219,35 @@ function handleWaveClear(
   const maxHp = deriveStats(state, config).maxHp;
 
   if (!isBossKill) {
-    // Regular wave cleared
+    // Regular wave cleared (D2: loop through waves, never auto-spawn boss)
     let updatedState = appendLog(state, {
       tMs: state.elapsedMs,
       type: 'waveCleared',
       detail: `Wave ${waveIndex + 1} cleared`,
     });
 
-    const nextWaveIndex = add(waveIndex, 1);
-    if (nextWaveIndex < stage.waves.length) {
-      // Spawn next regular wave
-      const nextEnemies = spawnWaveEnemies(stage.waves[nextWaveIndex], config.content);
-      return {
-        ...updatedState,
-        combat: {
-          ...combat,
-          waveIndex: nextWaveIndex,
-          enemies: nextEnemies,
-          playerHp: maxHp,
-          phase: { type: 'active' },
-        },
-        character: {
-          ...updatedState.character,
-          currentHp: maxHp,
-        },
-      };
-    } else {
-      // Final regular wave cleared -> spawn boss
-      const bossEnemy = config.content.enemies.get(stage.boss);
-      if (!bossEnemy) {
-        // Missing boss definition: stay on cleared wave
-        return updatedState;
-      }
-      const bossEnemyState: EnemyState = {
-        defId: bossEnemy.id,
-        hp: bossEnemy.maxHp,
-        maxHp: bossEnemy.maxHp,
-        attackTimerMs: 0,
-        effects: [],
-      };
-      updatedState = appendLog(updatedState, {
-        tMs: updatedState.elapsedMs,
-        type: 'bossSpawned',
-        detail: `Boss spawned: ${bossEnemy.name}`,
-      });
-      return {
-        ...updatedState,
-        combat: {
-          ...combat,
-          enemies: [bossEnemyState],
-          playerHp: maxHp,
-          phase: { type: 'boss' },
-        },
-        character: {
-          ...updatedState.character,
-          currentHp: maxHp,
-        },
-      };
-    }
+    // Advance to next wave, wrapping around to first wave
+    const nextWaveIndex = (waveIndex + 1) % stage.waves.length;
+    const nextEnemies = spawnWaveEnemies(stage.waves[nextWaveIndex], config.content);
+    
+    return {
+      ...updatedState,
+      combat: {
+        ...combat,
+        waveIndex: nextWaveIndex,
+        enemies: nextEnemies,
+        playerHp: maxHp,
+        phase: { type: 'active' },
+        wavesCleared: combat.wavesCleared + 1,
+      },
+      character: {
+        ...updatedState.character,
+        currentHp: maxHp,
+      },
+    };
   } else {
     // Boss kill: log reward, award bonus XP (D17), unlock stage (idempotent),
-    // add to clearedStages, then reset or auto-progress.
+    // add to clearedStages, then return to wave loop at first wave (D2).
     const bossDef = config.content.enemies.get(stage.boss);
     const totalBossXp = add(bossDef ? bossDef.xpReward : 0, stage.bossXpBonus);
 
@@ -243,7 +282,7 @@ function handleWaveClear(
     // D18 heal after boss kill
     const maxHpAfterBossBonus = deriveStats(updatedState, config).maxHp;
 
-    // Farming loop (D2) or auto-progress
+    // D2: Return to wave loop or auto-progress to next stage
     let nextStageId = combat.stageId;
     if (updatedState.settings.autoProgress && stage.unlocksStageId && updatedState.unlockedStages.includes(stage.unlocksStageId)) {
       nextStageId = stage.unlocksStageId;
@@ -261,7 +300,7 @@ function handleWaveClear(
       };
     }
 
-    // Reset to wave 0 of the target stage
+    // Reset to wave 0 of the target stage, reset wavesCleared
     const freshEnemies = spawnWaveEnemies(nextStage.waves[0], config.content);
     return {
       ...updatedState,
@@ -272,6 +311,7 @@ function handleWaveClear(
         enemies: freshEnemies,
         playerHp: maxHpAfterBossBonus,
         phase: { type: 'active' },
+        wavesCleared: 0,
       },
       character: {
         ...updatedState.character,
@@ -574,6 +614,7 @@ export function stepCombat(
     playerHp,
     playerEffects,
     phase,
+    wavesCleared: currentState.combat!.wavesCleared,
   };
 
   const resultState: GameState = {
@@ -594,12 +635,13 @@ export function stepCombat(
 // ---------------------------------------------------------------------------
 
 /**
- * Handles player defeat per D1:
- * - Retreat one wave (min wave 0), or from boss to last regular wave
+ * Handles player defeat per D1 and D22:
+ * - Retreat one wave (min wave 0), or from boss to first wave (D22)
  * - Spawn fresh enemies for the retreat wave
  * - Full heal to derived maxHp
  * - Clear player effects
  * - Enter recovery phase for pauseSeconds
+ * - Keep wavesCleared (D22)
  */
 function handleDefeat(state: GameState, config: GameConfig): GameState {
   const combat = state.combat;
@@ -610,11 +652,11 @@ function handleDefeat(state: GameState, config: GameConfig): GameState {
 
   const defeatConfig = config.content.defeat;
   
-  // Determine retreat wave
+  // Determine retreat wave (D22: boss defeat -> first wave)
   let retreatWave: number;
   if (combat.phase.type === 'boss') {
-    // Boss defeat -> retreat to last regular wave
-    retreatWave = stage.waves.length - 1;
+    // Boss defeat -> retreat to first wave (D22)
+    retreatWave = 0;
   } else {
     // Regular wave -> retreat by retreatWaves, min 0
     retreatWave = Math.max(0, combat.waveIndex - defeatConfig.retreatWaves);
@@ -645,6 +687,7 @@ function handleDefeat(state: GameState, config: GameConfig): GameState {
       playerEffects: [],
       playerAttackTimerMs: 0,
       phase: { type: 'recovering', remainingMs: pauseMs },
+      wavesCleared: combat.wavesCleared, // Keep wavesCleared (D22)
     },
     character: {
       ...defeated.character,

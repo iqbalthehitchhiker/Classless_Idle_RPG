@@ -1,6 +1,6 @@
 <script lang="ts">
   import { gameStore, dispatchAction, setSpeed, setPaused, saveNow, resetAndClearError } from './ui/index.js';
-  import { deriveStats, xpToNextLevel } from './core/index.js';
+  import { deriveStats, xpToNextLevel, canChallengeBoss } from './core/index.js';
   import { defaultConfig } from './data/index.js';
   
   let showDebug = $state(false);
@@ -50,6 +50,22 @@
   function handleResetSaveConfirm() {
     resetAndClearError();
     showResetSaveConfirm = false;
+  }
+  
+  function handleChallengeBoss() {
+    dispatchAction({ type: 'challengeBoss' });
+  }
+  
+  function getBossButtonDisabledReason(): string | null {
+    if (!$gameStore.state.combat) return 'No active combat';
+    if ($gameStore.state.combat.phase.type !== 'active') return 'Not in active phase';
+    if (!canChallengeBoss($gameStore.state, defaultConfig)) {
+      const stage = defaultConfig.content.stages.get($gameStore.state.combat.stageId);
+      if (!stage) return 'Stage not found';
+      const needed = stage.minWavesBeforeBoss - $gameStore.state.combat.wavesCleared;
+      if (needed > 0) return `Clear ${needed} more waves`;
+    }
+    return null;
   }
 </script>
 
@@ -152,6 +168,15 @@
         <div><strong>BOSS</strong></div>
       {:else}
         <div>Wave {combat.waveIndex + 1} / {stage?.waves.length ?? '?'}</div>
+        <div>Waves cleared: {combat.wavesCleared} / {stage?.minWavesBeforeBoss ?? '?'}</div>
+        {@const disabledReason = getBossButtonDisabledReason()}
+        <button 
+          onclick={handleChallengeBoss}
+          disabled={disabledReason !== null}
+          title={disabledReason ?? ''}
+        >
+          Challenge Boss {disabledReason ? `(${disabledReason})` : ''}
+        </button>
       {/if}
       
       <h3>Enemies</h3>
