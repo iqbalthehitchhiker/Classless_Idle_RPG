@@ -11,6 +11,9 @@ const args = process.argv.slice(2);
 const totalSeconds = args[0] ? parseFloat(args[0]) : 300;
 const seed = args[1] ? parseInt(args[1], 10) : 1;
 
+/** Sim bot only presses Challenge Boss at/above this level (D22). */
+const BOT_BOSS_LEVEL = 8;
+
 const STEP = 0.1;
 let state = createInitialState(seed, defaultConfig);
 state = dispatch(state, { type: 'startActivity', activityId: 'combat', params: { stageId: defaultConfig.content.startingStageId } }, defaultConfig);
@@ -39,8 +42,8 @@ let xpAtStop: number | null = null;
 let clearedStagesAtStop: readonly string[] | null = null;
 
 while (time < totalSeconds) {
-  // Challenge boss if available (D22)
-  if (state.combat && canChallengeBoss(state, defaultConfig)) {
+  // Challenge boss only at/above BOT_BOSS_LEVEL when eligible (D22); grind waves otherwise
+  if (state.combat && state.character.level >= BOT_BOSS_LEVEL && canChallengeBoss(state, defaultConfig)) {
     state = dispatch(state, { type: 'challengeBoss' }, defaultConfig);
   }
   

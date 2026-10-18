@@ -3,8 +3,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import { defaultConfig } from '../helpers/config.js';
+import { enterBoss } from '../helpers/boss.js';
 import {
   createInitialState,
+  dispatch,
   startCombat,
   stepCombat,
   deriveStatsForLevel,
@@ -74,12 +76,16 @@ function makeTinyContent(options: {
   effects?: EffectDef[];
   playerOnHitEffects?: string[];
   minWavesBeforeBoss?: number;
+  /** Extra waves to register alongside tinyWave. */
+  extraWaves?: WaveDef[];
+  /** Wave ids for the stage, in order (defaults to [tinyWave.id]). */
+  stageWaves?: string[];
 }): Content {
   const stageId = options.stageId ?? 'tiny-stage';
   const stage: StageDef = {
     id: stageId,
     name: 'Tiny Stage',
-    waves: [tinyWave.id],
+    waves: options.stageWaves ?? [tinyWave.id],
     boss: options.boss.id,
     bossXpBonus: options.bossXpBonus ?? 0,
     minWavesBeforeBoss: options.minWavesBeforeBoss ?? 5,
@@ -88,7 +94,7 @@ function makeTinyContent(options: {
   return loadContent({
     effects: options.effects ?? [],
     enemies: [tinyMob, options.boss],
-    waves: [tinyWave],
+    waves: [tinyWave, ...(options.extraWaves ?? [])],
     stages: [stage, ...(options.extraStages ?? [])],
     playerBaseOnHitEffects: options.playerOnHitEffects ?? [],
     startingStageId: stageId,
@@ -191,7 +197,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       waves: ['w1'],
       boss: 'test-boss',
       bossXpBonus: 100,
-      minWavesBeforeBoss: 5,
+      minWavesBeforeBoss: 1,
     };
     const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
 
@@ -199,13 +205,14 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     state = { ...state, unlockedStages: [...state.unlockedStages, 'test-stage'] };
     state = startCombat(state, 'test-stage', { ...defaultConfig, content: customContent });
 
-    // Kill wave 1
+    // Clear one regular wave (waves loop under D2; one clear makes the stage challengeable)
     for (let i = 0; i < 100; i++) {
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.phase.type === 'boss') break;
+      if (state.combat!.wavesCleared >= 1) break;
     }
 
-    // Boss spawned
+    // Boss spawned via Challenge Boss (D2/D22)
+    state = enterBoss(state, { ...defaultConfig, content: customContent });
     expect(state.combat!.phase.type).toBe('boss');
     expect(state.combat!.enemies.length).toBe(1);
     const bossState = state.combat!.enemies[0];
@@ -345,6 +352,8 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     const xpAfterFirst = state.character.xp;
 
     // Second kill (farming) must not duplicate the unlock.
+    // D2: the boss only returns via Challenge Boss, so re-enter it (stage is cleared now).
+    state = enterBoss(state, config);
     state = advanceUntil(state, config, (s) => s.character.xp >= xpAfterFirst + 150);
     expect(state.character.xp).toBe(xpAfterFirst + 150);
     expect(state.unlockedStages.filter((s) => s === 'stage-unlock-2')).toHaveLength(1);
@@ -380,6 +389,8 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     const xpAfterFirst = state.character.xp;
 
     // Second kill must not duplicate the cleared entry.
+    // D2: re-enter the boss via Challenge Boss (stage is in clearedStages now).
+    state = enterBoss(state, config);
     state = advanceUntil(state, config, (s) => s.character.xp >= xpAfterFirst + 150);
     expect(state.character.xp).toBe(xpAfterFirst + 150);
     expect(state.clearedStages.filter((s) => s === 'clear-stage')).toHaveLength(1);
@@ -413,7 +424,9 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     const xpAfterFirst = state.character.xp;
     expect(xpAfterFirst - initialXp).toBe(100 + 50);
 
-    // Second kill from the farming reset.
+    // Second kill: D2 sends the player back to the wave loop, so re-enter the
+    // boss via Challenge Boss (stage is in clearedStages now).
+    state = enterBoss(state, config);
     state = advanceUntil(state, config, (s) => s.character.xp >= xpAfterFirst + 150);
     const xpAfterSecond = state.character.xp;
     expect(xpAfterSecond - xpAfterFirst).toBe(100 + 50);
@@ -491,7 +504,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       waves: ['w1'],
       boss: 'auto-boss',
       bossXpBonus: 50,
-      minWavesBeforeBoss: 5,
+      minWavesBeforeBoss: 1,
       unlocksStageId: 'auto-stage-2',
     };
     const stage2: StageDef = {
@@ -511,6 +524,13 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     let state = createInitialState(1, defaultConfig);
     state = { ...state, unlockedStages: ['auto-stage-1'], settings: { autoProgress: true } };
     state = startCombat(state, 'auto-stage-1', { ...defaultConfig, content: customContent });
+
+    // Clear one regular wave (waves loop under D2; one clear makes the stage challengeable)
+    for (let i = 0; i < 300; i++) {
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
+      if (state.combat!.wavesCleared >= 1) break;
+    }
+    state = enterBoss(state, { ...defaultConfig, content: customContent });
 
     // Kill boss
     for (let i = 0; i < 300; i++) {
@@ -686,7 +706,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       waves: ['w1'],
       boss: 'damaging-boss',
       bossXpBonus: 50,
-      minWavesBeforeBoss: 5,
+      minWavesBeforeBoss: 1,
     };
     const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
 
@@ -694,11 +714,12 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     state = { ...state, unlockedStages: ['heal-reset-stage'] };
     state = startCombat(state, 'heal-reset-stage', { ...defaultConfig, content: customContent });
 
-    // Kill wave 1, reach boss
+    // Clear one regular wave (waves loop under D2), then enter the boss via Challenge Boss
     for (let i = 0; i < 100; i++) {
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.phase.type === 'boss') break;
+      if (state.combat!.wavesCleared >= 1) break;
     }
+    state = enterBoss(state, { ...defaultConfig, content: customContent });
 
     // Manually reduce player HP
     state = {
@@ -760,7 +781,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       waves: ['w1'],
       boss: 'levelup-boss',
       bossXpBonus: 5000,
-      minWavesBeforeBoss: 5,
+      minWavesBeforeBoss: 1,
     };
     const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
 
@@ -770,6 +791,13 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
 
     const initialLevel = state.character.level;
     const initialMaxHp = deriveStatsForLevel(initialLevel, defaultConfig.character).maxHp;
+
+    // Clear one regular wave (waves loop under D2), then enter the boss via Challenge Boss
+    for (let i = 0; i < 100; i++) {
+      state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
+      if (state.combat!.wavesCleared >= 1) break;
+    }
+    state = enterBoss(state, { ...defaultConfig, content: customContent });
 
     // Damage player
     state = {
@@ -891,7 +919,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       waves: ['w1'],
       boss: 'stun-boss',
       bossXpBonus: 50,
-      minWavesBeforeBoss: 5,
+      minWavesBeforeBoss: 1,
     };
     const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
 
@@ -899,11 +927,12 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
     state = { ...state, unlockedStages: ['stun-boss-stage'] };
     state = startCombat(state, 'stun-boss-stage', { ...defaultConfig, content: customContent });
 
-    // Kill wave 1, reach boss
+    // Clear one regular wave (waves loop under D2), then enter the boss via Challenge Boss
     for (let i = 0; i < 100; i++) {
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
-      if (state.combat!.phase.type === 'boss') break;
+      if (state.combat!.wavesCleared >= 1) break;
     }
+    state = enterBoss(state, { ...defaultConfig, content: customContent });
 
     // Wait for boss to hit and stun player
     for (let i = 0; i < 10; i++) {
@@ -1001,6 +1030,123 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
 
     // Deep equality
     expect(state1).toEqual(state2);
+  });
+
+  // -------------------------------------------------------------------------
+  // D22: Challenge Boss eligibility and wavesCleared counter
+  // -------------------------------------------------------------------------
+  it('challengeBoss is rejected when not eligible and accepted when eligible', () => {
+    const boss: EnemyDef = {
+      id: 'gate-boss',
+      name: 'Gate Boss',
+      maxHp: 5,
+      damage: 0,
+      attackInterval: 10.0,
+      xpReward: 100,
+      isBoss: true,
+      onHitEffects: [],
+    };
+    const customContent = makeTinyContent({
+      boss,
+      bossXpBonus: 50,
+      minWavesBeforeBoss: 3,
+      stageId: 'gate-stage',
+    });
+    const config = noLevelUpConfig(customContent);
+
+    let state = createInitialState(1, config);
+    state = { ...state, unlockedStages: ['gate-stage'] };
+    state = startCombat(state, 'gate-stage', config);
+
+    // Not eligible at wavesCleared = 0: challengeBoss must be a no-op.
+    expect(state.combat!.wavesCleared).toBe(0);
+    expect(state.combat!.phase.type).toBe('active');
+    const rejectedAtStart = dispatch(state, { type: 'challengeBoss' }, config);
+    expect(rejectedAtStart.combat!.phase.type).toBe('active');
+    expect(rejectedAtStart.combat!.enemies[0].defId).toBe('tiny-mob');
+    expect(rejectedAtStart.combat!.wavesCleared).toBe(0);
+
+    // Two clears (< minWavesBeforeBoss): still rejected.
+    for (let i = 0; i < 200 && state.combat!.wavesCleared < 2; i++) {
+      state = stepCombat(state, 0.1, config);
+    }
+    expect(state.combat!.wavesCleared).toBe(2);
+    const rejectedMidGrind = dispatch(state, { type: 'challengeBoss' }, config);
+    expect(rejectedMidGrind.combat!.phase.type).toBe('active');
+    expect(rejectedMidGrind.combat!.enemies[0].defId).toBe('tiny-mob');
+
+    // Third clear reaches minWavesBeforeBoss: accepted.
+    for (let i = 0; i < 200 && state.combat!.wavesCleared < 3; i++) {
+      state = stepCombat(state, 0.1, config);
+    }
+    expect(state.combat!.wavesCleared).toBe(3);
+    const acceptedByGrind = dispatch(state, { type: 'challengeBoss' }, config);
+    expect(acceptedByGrind.combat!.phase.type).toBe('boss');
+    expect(acceptedByGrind.combat!.enemies[0].defId).toBe('gate-boss');
+
+    // After a boss kill the stage is in clearedStages: accepted again even with wavesCleared reset.
+    state = advanceUntil(acceptedByGrind, config, (s) => s.clearedStages.includes('gate-stage'));
+    expect(state.combat!.phase.type).toBe('active');
+    expect(state.combat!.waveIndex).toBe(0);
+    expect(state.combat!.wavesCleared).toBe(0);
+    const acceptedByClear = dispatch(state, { type: 'challengeBoss' }, config);
+    expect(acceptedByClear.combat!.phase.type).toBe('boss');
+    expect(acceptedByClear.combat!.enemies[0].defId).toBe('gate-boss');
+  });
+
+  it('wavesCleared counts regular wave clears and resets on start/stop', () => {
+    const boss: EnemyDef = {
+      id: 'count-boss',
+      name: 'Count Boss',
+      maxHp: 5,
+      damage: 0,
+      attackInterval: 10.0,
+      xpReward: 100,
+      isBoss: true,
+      onHitEffects: [],
+    };
+    const wave2: WaveDef = {
+      id: 'count-wave-2',
+      enemies: [{ enemyId: tinyMob.id, count: 1 }],
+    };
+    const customContent = makeTinyContent({
+      boss,
+      bossXpBonus: 0,
+      minWavesBeforeBoss: 10, // high so the Challenge Boss path cannot interfere
+      stageId: 'count-stage',
+      extraWaves: [wave2],
+      stageWaves: [tinyWave.id, wave2.id],
+    });
+    const config = noLevelUpConfig(customContent);
+
+    let state = createInitialState(1, config);
+    state = { ...state, unlockedStages: ['count-stage'] };
+    state = startCombat(state, 'count-stage', config);
+    expect(state.combat!.wavesCleared).toBe(0);
+
+    // First clear: wave 0 -> wave 1, counter counts one regular clear.
+    for (let i = 0; i < 100 && state.combat!.wavesCleared < 1; i++) {
+      state = stepCombat(state, 0.1, config);
+    }
+    expect(state.combat!.wavesCleared).toBe(1);
+    expect(state.combat!.waveIndex).toBe(1);
+
+    // Second clear: last wave wraps to wave 0, counter keeps counting.
+    for (let i = 0; i < 100 && state.combat!.wavesCleared < 2; i++) {
+      state = stepCombat(state, 0.1, config);
+    }
+    expect(state.combat!.wavesCleared).toBe(2);
+    expect(state.combat!.waveIndex).toBe(0);
+
+    // Stop: the combat session (and its counter) is gone.
+    state = dispatch(state, { type: 'stopCombat' }, config);
+    expect(state.combat).toBeNull();
+    expect(state.activeActivity).toBeNull();
+
+    // Restart: the counter starts over at 0 (D22).
+    state = dispatch(state, { type: 'startCombat', stageId: 'count-stage' }, config);
+    expect(state.combat!.wavesCleared).toBe(0);
+    expect(state.combat!.waveIndex).toBe(0);
   });
 });
 

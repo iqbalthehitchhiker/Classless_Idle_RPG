@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { defaultConfig } from '../helpers/config.js';
+import { enterBoss } from '../helpers/boss.js';
 import {
   advance,
   applyEffect,
@@ -253,11 +254,12 @@ describe('Timed Effects System (M1-08)', () => {
   // 6. DoT kills enemy and awards XP once
   // -------------------------------------------------------------------------
   it('DoT can kill an enemy and awards XP once', () => {
-    // Enemy with 5 HP; player attacks with 0 damage so only DoT damages it
+    // Enemy so tough that only the DoT kill matters: player attacks cannot kill it,
+    // so the D2 wave loop's fresh respawn never contributes XP of its own.
     const dotVictim: EnemyDef = {
       id: 'dot-victim',
       name: 'DoT Victim',
-      maxHp: 5,
+      maxHp: 10000,
       damage: 0,
       attackInterval: 10.0,
       xpReward: 25,
@@ -271,7 +273,7 @@ describe('Timed Effects System (M1-08)', () => {
       waves: ['dot-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
-        minWavesBeforeBoss: 5,
+        minWavesBeforeBoss: 1,
     };
     const customContent = makeCustomContent({
       enemies: [dotVictim],
@@ -305,11 +307,12 @@ describe('Timed Effects System (M1-08)', () => {
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
-    // Enemy was killed by DoT!
-    expect(state.combat!.enemies.length).toBe(1); // Boss spawned
-    // XP awarded once (25 XP)
+    // Enemy was killed by DoT! The wave looped (D2); XP awarded once (25 XP).
+    expect(state.combat!.enemies.length).toBe(1);
     expect(state.character.xp).toBe(25);
-    // Boss spawned since final regular wave is cleared
+
+    // Boss is entered only via Challenge Boss (D2/D22); the one DoT clear made the stage eligible.
+    state = enterBoss(state, { ...defaultConfig, content: customContent });
     expect(state.combat!.phase.type).toBe('boss');
     expect(state.combat!.enemies[0].defId).toBe('goblin-chief');
 
@@ -417,7 +420,7 @@ describe('Timed Effects System (M1-08)', () => {
       waves: ['fragile-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
-        minWavesBeforeBoss: 5,
+        minWavesBeforeBoss: 1,
     };
     const customContent = makeCustomContent({
       effects: [testStunDef],
@@ -449,10 +452,18 @@ describe('Timed Effects System (M1-08)', () => {
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
-    // Enemy is removed, boss spawned (since this was the last wave)
+    // Enemy is removed; the D2 wave loop spawns a fresh enemy with no effects left over
     expect(state.combat!.enemies.length).toBe(1);
+    expect(state.combat!.enemies[0].defId).toBe('fragile');
+    expect(state.combat!.enemies[0].effects).toHaveLength(0);
+    expect(state.combat!.phase.type).toBe('active');
+
+    // The stun effect on the original enemy is gone; the boss (entered via
+    // Challenge Boss) starts clean as well.
+    state = enterBoss(state, { ...defaultConfig, content: customContent });
     expect(state.combat!.phase.type).toBe('boss');
-    // The stun effect on the original enemy is gone
+    expect(state.combat!.enemies[0].defId).toBe('goblin-chief');
+    expect(state.combat!.enemies[0].effects).toHaveLength(0);
   });
 
   // -------------------------------------------------------------------------

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { defaultConfig } from '../helpers/config.js';
+import { enterBoss } from '../helpers/boss.js';
 import {
   advance,
+  canChallengeBoss,
   createInitialState,
   dispatch,
   startCombat,
@@ -302,7 +304,7 @@ describe('Combat Engine (M1-07)', () => {
       waves: ['w1', 'w2'],
       boss: 'goblin-chief',
       bossXpBonus: 20,
-        minWavesBeforeBoss: 5,
+        minWavesBeforeBoss: 2,
     };
     const customContent = makeCustomContent({
       enemies: [weakEnemy],
@@ -332,7 +334,15 @@ describe('Combat Engine (M1-07)', () => {
       state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
     }
 
-    // All regular waves cleared -> boss spawned!
+    // All regular waves cleared -> wave loop wraps to the first wave (D2), no auto boss.
+    expect(state.combat!.phase.type).toBe('active');
+    expect(state.combat!.waveIndex).toBe(0);
+    expect(state.combat!.enemies.length).toBe(1);
+    expect(state.combat!.enemies[0].defId).toBe('one-shot');
+
+    // Boss is entered only via Challenge Boss (D2/D22); both waves cleared makes it eligible.
+    expect(canChallengeBoss(state, { ...defaultConfig, content: customContent })).toBe(true);
+    state = enterBoss(state, { ...defaultConfig, content: customContent });
     expect(state.combat!.phase.type).toBe('boss');
     expect(state.combat!.enemies.length).toBe(1);
     expect(state.combat!.enemies[0].defId).toBe('goblin-chief');
@@ -341,6 +351,61 @@ describe('Combat Engine (M1-07)', () => {
     const beforeBossHp = state.combat!.enemies[0].hp;
     const nextState = stepCombat(state, 1.0, { ...defaultConfig, content: customContent });
     expect(nextState.combat!.enemies[0].hp).toBeLessThan(beforeBossHp);
+  });
+
+  // -------------------------------------------------------------------------
+  // 5b. Wave loop wraps after the final wave; boss is never auto-spawned (D2)
+  // -------------------------------------------------------------------------
+  it('clearing the last wave of a stage loops back to the first wave and does NOT spawn the boss', () => {
+    const weakEnemy: EnemyDef = {
+      id: 'loop-one-shot',
+      name: 'Loop One Shot',
+      maxHp: 5,
+      damage: 0,
+      attackInterval: 10.0,
+      xpReward: 5,
+      isBoss: false,
+      onHitEffects: [],
+    };
+    const wave1: WaveDef = { id: 'loop-w1', enemies: [{ enemyId: 'loop-one-shot', count: 1 }] };
+    const wave2: WaveDef = { id: 'loop-w2', enemies: [{ enemyId: 'loop-one-shot', count: 1 }] };
+    const stage: StageDef = {
+      id: 'wave-loop-stage',
+      name: 'Wave Loop Stage',
+      waves: ['loop-w1', 'loop-w2'],
+      boss: 'goblin-chief',
+      bossXpBonus: 20,
+      minWavesBeforeBoss: 5,
+    };
+    const customContent = makeCustomContent({
+      enemies: [weakEnemy],
+      waves: [wave1, wave2],
+      stages: [stage],
+    });
+    const config = { ...defaultConfig, content: customContent };
+
+    let state = createInitialState(1, defaultConfig);
+    state = { ...state, unlockedStages: [...state.unlockedStages, 'wave-loop-stage'] };
+    state = startCombat(state, 'wave-loop-stage', config);
+
+    // Clear wave 1
+    for (let i = 0; i < 10; i++) {
+      state = stepCombat(state, 0.1, config);
+    }
+    expect(state.combat!.waveIndex).toBe(1);
+
+    // Clear wave 2 (the final wave): must wrap to wave 0, stay active, no boss.
+    for (let i = 0; i < 10; i++) {
+      state = stepCombat(state, 0.1, config);
+    }
+    expect(state.combat!.waveIndex).toBe(0);
+    expect(state.combat!.phase.type).toBe('active');
+    expect(state.combat!.phase.type).not.toBe('boss');
+    expect(state.combat!.enemies.length).toBe(1);
+    expect(state.combat!.enemies[0].defId).toBe('loop-one-shot');
+    // Counter counted both clears but the stage is not challengeable yet (D22).
+    expect(state.combat!.wavesCleared).toBe(2);
+    expect(canChallengeBoss(state, config)).toBe(false);
   });
 
   // -------------------------------------------------------------------------
@@ -536,9 +601,9 @@ describe('Combat Engine (M1-07)', () => {
       expect(state.combat!.enemies[0].hp).toBe(10);
     });
 
-    // b) Tie rule (D14): player and last enemy both die in the same step -> player wins (playerHp = 1)
+    // b) Tie rule (D14): player and last enemy both die in the same step -> player wins (D18: HP restored to maxHp)
     describe('D14 simultaneous death tie-breaker', () => {
-      it('player survives with 1 HP when both player and last enemy die to DoT in same step', () => {
+      it('player is not defeated and HP equals maxHp when both player and last enemy die to DoT in same step', () => {
         const dummyEnemy: EnemyDef = {
           id: 'tie-enemy-dot',
           name: 'Tie Enemy',
@@ -556,7 +621,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['tie-w1'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
-        minWavesBeforeBoss: 5,
+        minWavesBeforeBoss: 1,
         };
         const customContent = makeCustomContent({
           enemies: [dummyEnemy],
@@ -602,14 +667,21 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // D14 + D18: Player wins tie, not defeated; wave cleared and boss spawned; HP fully restored to maxHp
-        expect(state.combat!.phase.type).toBe('boss');
+        // D14 + D18: Player wins tie, not defeated; the cleared wave loops (D2); HP fully restored to maxHp
+        expect(state.combat!.phase.type).not.toBe('recovering');
+        expect(state.combat!.phase.type).toBe('active');
+        expect(state.combat!.waveIndex).toBe(0);
         const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
         expect(state.combat!.playerHp).toBe(maxHp);
         expect(state.character.currentHp).toBe(maxHp);
+
+        // The boss is still entered only via Challenge Boss (D2/D22)
+        state = enterBoss(state, { ...defaultConfig, content: customContent });
+        expect(state.combat!.phase.type).toBe('boss');
+        expect(state.combat!.enemies[0].defId).toBe('goblin-chief');
       });
 
-      it('player survives with 1 HP when player dies to DoT but kills last enemy with direct attack in same step', () => {
+      it('player is not defeated and HP equals maxHp when player dies to DoT but kills last enemy with direct attack in same step', () => {
         const dummyEnemy: EnemyDef = {
           id: 'tie-enemy-direct',
           name: 'Tie Enemy Direct',
@@ -627,7 +699,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['tie-w2'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
-        minWavesBeforeBoss: 5,
+        minWavesBeforeBoss: 1,
         };
         const customContent = makeCustomContent({
           enemies: [dummyEnemy],
@@ -668,11 +740,18 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // D14 + D18: Player wins tie, not defeated; boss spawned; HP fully restored to maxHp
-        expect(state.combat!.phase.type).toBe('boss');
+        // D14 + D18: Player wins tie, not defeated; the cleared wave loops (D2); HP fully restored to maxHp
+        expect(state.combat!.phase.type).not.toBe('recovering');
+        expect(state.combat!.phase.type).toBe('active');
+        expect(state.combat!.waveIndex).toBe(0);
         const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
         expect(state.combat!.playerHp).toBe(maxHp);
         expect(state.character.currentHp).toBe(maxHp);
+
+        // The boss is still entered only via Challenge Boss (D2/D22)
+        state = enterBoss(state, { ...defaultConfig, content: customContent });
+        expect(state.combat!.phase.type).toBe('boss');
+        expect(state.combat!.enemies[0].defId).toBe('goblin-chief');
       });
     });
 
@@ -1118,7 +1197,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['f-w1'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
-        minWavesBeforeBoss: 5,
+        minWavesBeforeBoss: 1,
         };
         const customContent = makeCustomContent({
           enemies: [enemy],
@@ -1162,12 +1241,18 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // Regression: D14 + D18 work on final wave; boss spawned, HP at maxHp
+        // Regression: D14 + D18 work on the final wave; the wave loop wraps (D2), HP at maxHp
         expect(state.combat!.phase.type).not.toBe('recovering');
-        expect(state.combat!.phase.type).toBe('boss');
+        expect(state.combat!.phase.type).toBe('active');
+        expect(state.combat!.waveIndex).toBe(0);
         const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
         expect(state.combat!.playerHp).toBe(maxHp);
         expect(state.character.currentHp).toBe(maxHp);
+
+        // The boss is still entered only via Challenge Boss (D2/D22)
+        state = enterBoss(state, { ...defaultConfig, content: customContent });
+        expect(state.combat!.phase.type).toBe('boss');
+        expect(state.combat!.enemies[0].defId).toBe('goblin-chief');
       });
 
       it('regression: final wave tie spawns boss with HP at maxHp (attack case)', () => {
@@ -1188,7 +1273,7 @@ describe('Combat Engine (M1-07)', () => {
           waves: ['f-a-w1'],
           boss: 'goblin-chief',
           bossXpBonus: 0,
-        minWavesBeforeBoss: 5,
+        minWavesBeforeBoss: 1,
         };
         const customContent = makeCustomContent({
           enemies: [enemy],
@@ -1226,12 +1311,18 @@ describe('Combat Engine (M1-07)', () => {
 
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
 
-        // Regression: D14 + D18 work on final wave with attack; boss spawned, HP at maxHp
+        // Regression: D14 + D18 work on the final wave with attack; the wave loop wraps (D2), HP at maxHp
         expect(state.combat!.phase.type).not.toBe('recovering');
-        expect(state.combat!.phase.type).toBe('boss');
+        expect(state.combat!.phase.type).toBe('active');
+        expect(state.combat!.waveIndex).toBe(0);
         const maxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
         expect(state.combat!.playerHp).toBe(maxHp);
         expect(state.character.currentHp).toBe(maxHp);
+
+        // The boss is still entered only via Challenge Boss (D2/D22)
+        state = enterBoss(state, { ...defaultConfig, content: customContent });
+        expect(state.combat!.phase.type).toBe('boss');
+        expect(state.combat!.enemies[0].defId).toBe('goblin-chief');
       });
 
       it('regression: lethal DoT with enemies still alive after step defeats player', () => {
