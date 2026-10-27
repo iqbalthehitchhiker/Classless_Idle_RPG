@@ -189,9 +189,9 @@
       {#each combat.enemies as enemy}
         {@const def = defaultConfig.content.enemies.get(enemy.defId)}
         <div class="enemy">
-          <div>{def?.name ?? enemy.defId}</div>
-          <div class="bar-row bar-enemy-hp">
-            <span class="bar-label">{enemy.hp.toFixed(0)} / {enemy.maxHp.toFixed(0)}</span>
+          <div>{def?.name ?? enemy.defId}{combat.phase.type === 'boss' ? ' (BOSS)' : ''}</div>
+          <div class="bar-row {combat.phase.type === 'boss' ? 'bar-boss-hp' : 'bar-enemy-hp'}">
+            <span class="bar-label">BOSS: {enemy.hp.toFixed(0)} / {enemy.maxHp.toFixed(0)}</span>
             <div class="bar-track">
               <div class="bar-fill" style="width: {(enemy.hp / enemy.maxHp) * 100}%"></div>
             </div>

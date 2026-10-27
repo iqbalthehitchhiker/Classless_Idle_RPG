@@ -3,7 +3,7 @@
 :root {
   /* --- Pixel scale & icon grid (PLACEHOLDER) --- */
   --px-scale: 2; /* PLACEHOLDER: provisional pixel scale, see A4 */
-  --icon-native: 48; /* PLACEHOLDER: provisional native icon grid, see A14 */
+  --icon-native: 48; /* PLACEHOLDER: provisional native icon grid, see A4 */
 
   /* --- Placeholder palette: grays plus one accent (PLACEHOLDER) --- */
   --color-void: #10151A; /* PLACEHOLDER */
@@ -48,34 +48,34 @@
   /* --- Bar tokens --- */
   --bar-player-hp-width: 260px;
   --bar-player-hp-height: 12px;
-  --bar-player-hp-fill: #A8F078; /* Wisp (A19) */
+  --bar-player-hp-fill: #A8F078; /* PLACEHOLDER: Wisp (A19) */
   --bar-enemy-hp-width: 160px;
   --bar-enemy-hp-height: 8px;
-  --bar-enemy-hp-fill: #D94752; /* Blood (A19) */
+  --bar-enemy-hp-fill: #D94752; /* PLACEHOLDER: Blood (A19) */
   --bar-boss-hp-width: 260px;
   --bar-boss-hp-height: 14px;
-  --bar-boss-hp-fill: #B03A42; /* Darker Blood (A19) */
+  --bar-boss-hp-fill: #B03A42; /* PLACEHOLDER: Darker Blood (A19) */
   --bar-xp-width: 260px;
   --bar-xp-height: 12px;
-  --bar-xp-fill: #FFC857; /* Gold (A19) */
+  --bar-xp-fill: #FFC857; /* PLACEHOLDER: Gold (A19) */
 
   /* --- Identity colors (A8) --- */
-  --identity-level: #FFC857; /* Gold + "Lv" label */
-  --identity-proficiency: #ED75B8; /* Soul Magenta + glyph */
-  --identity-knowledge: #55D6E8; /* Cyan + book/eye glyph */
-  --identity-skill-points: #D7D0B8; /* Text cream + star glyph */
+  --identity-level: #FFC857; /* PLACEHOLDER: Gold + "Lv" label (A8) */
+  --identity-proficiency: #ED75B8; /* PLACEHOLDER: Soul Magenta + glyph (A8) */
+  --identity-knowledge: #55D6E8; /* PLACEHOLDER: Cyan + book/eye glyph (A8) */
+  --identity-skill-points: #D7D0B8; /* PLACEHOLDER: Text cream + star glyph (A8) */
 
   /* --- Branch colors (A11) --- */
-  --branch-destruction: #FF794F; /* Ember */
-  --branch-nature: #A8F078; /* Wisp */
-  --branch-arcana: #69C9FF; /* Aether */
-  --branch-void: #C58AFF; /* Eldritch */
+  --branch-destruction: #FF794F; /* PLACEHOLDER: Ember (A11) */
+  --branch-nature: #A8F078; /* PLACEHOLDER: Wisp (A11) */
+  --branch-arcana: #69C9FF; /* PLACEHOLDER: Aether (A11) */
+  --branch-void: #C58AFF; /* PLACEHOLDER: Eldritch (A11) */
 
   /* --- State tokens (A10) --- */
-  --state-locked: #626C70; /* Slate + padlock */
-  --state-affordable: #D7D0B8; /* Cream frame + "+" marker */
-  --state-owned: #FFC857; /* Gold + check marker */
-  --state-requirement-unmet: #D94752; /* Blood + X or "!" marker */
+  --state-locked: #626C70; /* PLACEHOLDER: Slate + padlock (A10) */
+  --state-affordable: #D7D0B8; /* PLACEHOLDER: Cream frame + "+" marker (A10) */
+  --state-owned: #FFC857; /* PLACEHOLDER: Gold + check marker (A10) */
+  --state-requirement-unmet: #D94752; /* PLACEHOLDER: Blood + X or "!" marker (A10) */
 }
 
 /* --- Utility: pixel art --- */
