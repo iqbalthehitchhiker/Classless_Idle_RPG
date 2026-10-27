@@ -77,7 +77,7 @@
     <div class="error-banner">
       <strong>Save Error:</strong> {$gameStore.loadError}
       {#if showResetConfirm}
-        <div style="margin-top: 0.5rem;">
+        <div style="margin-top: var(--space-2);">
           <strong>Are you sure?</strong> This will delete the corrupted save and start a new game.
           <button onclick={handleResetConfirm}>Yes, Reset</button>
           <button onclick={() => showResetConfirm = false}>Cancel</button>
@@ -97,14 +97,14 @@
     <span>Speed: {$gameStore.speed}x {$gameStore.paused ? '(PAUSED)' : ''}</span>
     
     <!-- Save controls -->
-    <div style="margin-left: auto; display: flex; gap: 0.5rem; align-items: center;">
+    <div style="margin-left: auto; display: flex; gap: var(--space-2); align-items: center;">
       <button onclick={handleSaveNow} disabled={$gameStore.loadError !== null}>Save now</button>
       {#if $gameStore.lastSavedAt !== null}
-        <span style="font-size: 0.9rem;">Last saved: {timeSinceLastSave}s ago</span>
+        <span style="font-size: var(--text-xs);">Last saved: {timeSinceLastSave}s ago</span>
       {/if}
       {#if showResetSaveConfirm}
-        <span style="font-size: 0.9rem; color: #e24a4a;">Delete your save and start over?</span>
-        <button onclick={handleResetSaveConfirm} style="background: #e24a4a;">Yes</button>
+        <span style="font-size: var(--text-xs); color: var(--state-requirement-unmet);">Delete your save and start over?</span>
+        <button onclick={handleResetSaveConfirm} style="background: var(--state-requirement-unmet);">Yes</button>
         <button onclick={() => showResetSaveConfirm = false}>No</button>
       {:else}
         <button onclick={() => showResetSaveConfirm = true}>Reset save</button>
@@ -125,8 +125,8 @@
         <strong>Fighting</strong>
       {/if}
     {/if}
-    <span style="margin-left: 1rem;">Cleared: [{$gameStore.state.clearedStages.join(', ') || 'none'}]</span>
-    <span style="margin-left: 1rem;">Unlocked: [{$gameStore.state.unlockedStages.join(', ')}]</span>
+    <span style="margin-left: var(--space-4);">Cleared: [{$gameStore.state.clearedStages.join(', ') || 'none'}]</span>
+    <span style="margin-left: var(--space-4);">Unlocked: [{$gameStore.state.unlockedStages.join(', ')}]</span>
   </div>
   
   <!-- Character Panel -->
@@ -141,14 +141,20 @@
       <div>Level: {char.level} | Skill Points: {char.skillPoints}</div>
       <div>
         XP: {char.xp} / {xpNeeded}
-        <div class="bar">
-          <div class="bar-fill" style="width: {(char.xp / xpNeeded) * 100}%"></div>
+        <div class="bar-row bar-xp">
+          <span class="bar-label">{char.xp} / {xpNeeded}</span>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: {(char.xp / xpNeeded) * 100}%"></div>
+          </div>
         </div>
       </div>
       <div>
         HP: {currentHp.toFixed(0)} / {stats.maxHp.toFixed(0)}
-        <div class="bar">
-          <div class="bar-fill hp" style="width: {(currentHp / stats.maxHp) * 100}%"></div>
+        <div class="bar-row bar-player-hp">
+          <span class="bar-label">{currentHp.toFixed(0)} / {stats.maxHp.toFixed(0)}</span>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: {(currentHp / stats.maxHp) * 100}%"></div>
+          </div>
         </div>
       </div>
       <div>Attack: {stats.attack.toFixed(1)} | Rate: {stats.attackRate.toFixed(2)}/s</div>
@@ -183,9 +189,12 @@
       {#each combat.enemies as enemy}
         {@const def = defaultConfig.content.enemies.get(enemy.defId)}
         <div class="enemy">
-          <div>{def?.name ?? enemy.defId} - {enemy.hp.toFixed(0)} / {enemy.maxHp.toFixed(0)}</div>
-          <div class="bar">
-            <div class="bar-fill enemy-hp" style="width: {(enemy.hp / enemy.maxHp) * 100}%"></div>
+          <div>{def?.name ?? enemy.defId}</div>
+          <div class="bar-row bar-enemy-hp">
+            <span class="bar-label">{enemy.hp.toFixed(0)} / {enemy.maxHp.toFixed(0)}</span>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: {(enemy.hp / enemy.maxHp) * 100}%"></div>
+            </div>
           </div>
           {#if enemy.effects.length > 0}
             <div class="effects">
@@ -232,7 +241,7 @@
       <button onclick={stopCombat}>Stop</button>
     {/if}
     
-    <div style="margin-top: 0.5rem;">
+    <div style="margin-top: var(--space-2);">
       <label>
         <input type="checkbox" checked={$gameStore.state.settings.autoProgress} onchange={toggleAutoProgress} />
         Auto-progress to next stage on boss kill
@@ -265,163 +274,191 @@
 
 <style>
   main {
-    font-family: system-ui, -apple-system, sans-serif;
-    max-width: 960px;
+    font-family: var(--font-body);
+    max-width: var(--layout-max-width);
     margin: 0 auto;
-    padding: 2rem;
-    color: #e0e0e0;
-    background: #1a1a1a;
+    padding: var(--space-6);
+    color: var(--color-text);
+    background: var(--color-void);
     min-height: 100vh;
   }
   
   h1 {
-    color: #c8a86e;
-    margin-bottom: 1rem;
+    color: var(--color-accent);
+    margin-bottom: var(--space-4);
   }
   
   .error-banner {
-    padding: 1rem;
-    background: #4a2020;
-    border-left: 4px solid #e24a4a;
-    margin-bottom: 1rem;
-    border-radius: 4px;
+    padding: var(--space-4);
+    background: var(--color-panel);
+    border-left: var(--border-width-thick) solid var(--state-requirement-unmet);
+    margin-bottom: var(--space-4);
+    border-radius: var(--radius);
   }
   
   .error-banner button {
-    margin-top: 0.5rem;
-    margin-right: 0.5rem;
-    background: #e24a4a;
+    margin-top: var(--space-2);
+    margin-right: var(--space-2);
+    background: var(--state-requirement-unmet);
   }
   
   .error-banner button:hover {
-    background: #f25a5a;
+    background: var(--color-muted);
   }
   
   h2 {
-    color: #c8a86e;
-    font-size: 1.2rem;
-    margin-bottom: 0.5rem;
+    color: var(--color-accent);
+    font-size: var(--text-lg);
+    margin-bottom: var(--space-3);
   }
   
   h3 {
-    color: #a89968;
-    font-size: 1rem;
-    margin: 0.5rem 0 0.25rem 0;
+    color: var(--color-muted);
+    font-size: var(--text-base);
+    margin: var(--space-3) 0 var(--space-2) 0;
   }
   
   .controls {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--space-2);
     align-items: center;
-    margin-bottom: 1rem;
-    padding: 1rem;
-    background: #252525;
-    border-radius: 4px;
+    margin-bottom: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-panel);
+    border-radius: var(--radius);
   }
   
   .status-banner {
-    padding: 0.75rem;
-    background: #2a2a2a;
-    border-left: 4px solid #c8a86e;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
+    padding: var(--space-3);
+    background: var(--color-raised);
+    border-left: var(--border-width-thick) solid var(--color-accent);
+    margin-bottom: var(--space-4);
+    font-size: var(--text-xs);
   }
   
   .panel {
-    background: #252525;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    border-radius: 4px;
+    background: var(--color-panel);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+    border-radius: var(--radius);
   }
   
-  .bar {
-    width: 100%;
-    height: 20px;
-    background: #333;
-    border-radius: 4px;
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin: var(--space-1) 0;
+  }
+  
+  .bar-label {
+    font-size: var(--text-xs);
+    color: var(--color-text);
+    white-space: nowrap;
+  }
+  
+  .bar-track {
+    background: var(--color-stone);
+    border-radius: var(--radius);
     overflow: hidden;
-    margin: 0.25rem 0;
+  }
+  
+  .bar-player-hp .bar-track {
+    width: var(--bar-player-hp-width);
+    height: var(--bar-player-hp-height);
+  }
+  
+  .bar-enemy-hp .bar-track {
+    width: var(--bar-enemy-hp-width);
+    height: var(--bar-enemy-hp-height);
+  }
+
+  .bar-xp .bar-track {
+    width: var(--bar-xp-width);
+    height: var(--bar-xp-height);
   }
   
   .bar-fill {
     height: 100%;
-    background: #4a90e2;
-    transition: width 0.2s;
+    transition: width 150ms;
   }
   
-  .bar-fill.hp {
-    background: #e24a4a;
+  .bar-player-hp .bar-fill {
+    background: var(--bar-player-hp-fill);
   }
   
-  .bar-fill.enemy-hp {
-    background: #e2a54a;
+  .bar-enemy-hp .bar-fill {
+    background: var(--bar-enemy-hp-fill);
+  }
+
+  .bar-xp .bar-fill {
+    background: var(--bar-xp-fill);
   }
   
   .enemy {
-    margin: 0.5rem 0;
-    padding: 0.5rem;
-    background: #2a2a2a;
-    border-radius: 4px;
+    margin: var(--space-3) 0;
+    padding: var(--space-2);
+    background: var(--color-raised);
+    border-radius: var(--radius);
   }
   
   .effects {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--space-2);
     flex-wrap: wrap;
-    margin-top: 0.5rem;
+    margin-top: var(--space-2);
   }
   
   .badge {
-    background: #3a3a3a;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.8rem;
+    background: var(--color-stone);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius);
+    font-size: var(--text-xs);
   }
   
   .log {
-    font-family: monospace;
-    font-size: 0.9rem;
-    max-height: 300px;
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    max-height: var(--log-max-height);
     overflow-y: auto;
   }
   
   .log div {
-    padding: 0.25rem 0;
-    border-bottom: 1px solid #333;
+    padding: var(--space-1) 0;
+    border-bottom: var(--border-width) solid var(--color-border);
   }
   
   button {
-    background: #3a3a3a;
-    color: #e0e0e0;
-    border: 1px solid #555;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
+    background: var(--color-stone);
+    color: var(--color-text);
+    border: var(--border-width) solid var(--color-border);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius);
     cursor: pointer;
   }
   
   button:hover {
-    background: #4a4a4a;
+    background: var(--color-muted);
   }
   
   select {
-    background: #3a3a3a;
-    color: #e0e0e0;
-    border: 1px solid #555;
-    padding: 0.5rem;
-    border-radius: 4px;
+    background: var(--color-stone);
+    color: var(--color-text);
+    border: var(--border-width) solid var(--color-border);
+    padding: var(--space-2);
+    border-radius: var(--radius);
   }
   
   pre {
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     overflow-x: auto;
-    background: #1a1a1a;
-    padding: 1rem;
-    border-radius: 4px;
-    max-height: 500px;
+    background: var(--color-void);
+    padding: var(--space-4);
+    border-radius: var(--radius);
+    max-height: var(--pre-max-height);
     overflow-y: auto;
   }
   
   input[type="checkbox"] {
-    margin-right: 0.5rem;
+    margin-right: var(--space-2);
   }
 </style>

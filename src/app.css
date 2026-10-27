@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
-  background-color: #1a1a2e;
-  color: #e0e0e0;
+  background-color: var(--color-void);
+  color: var(--color-text);
 }
 
 *,
@@ -13,5 +13,5 @@
 
 body {
   min-height: 100vh;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
 }
