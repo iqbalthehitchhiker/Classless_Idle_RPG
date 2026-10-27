@@ -25,7 +25,7 @@ export const levelCurveConfigSchema = z.object({
 export type LevelCurveConfig = z.infer<typeof levelCurveConfigSchema>;
 
 export const levelCurve: LevelCurveConfig = levelCurveConfigSchema.parse({
-  baseXp: 50,
+  baseXp: 180,      // M1-15: increased to hit ~900s to level 10 (was 50)
   growthFactor: 1.35,
   skillPointsPerLevel: 1,
 });

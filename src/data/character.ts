@@ -56,15 +56,15 @@ export type CharacterStatsData = z.infer<typeof characterStatsSchema>;
 
 export const characterStats: CharacterStatsData = characterStatsSchema.parse({
   base: {
-    maxHp: 100,
+    maxHp: 200,      // M1-15: increased from 100 to survive early game
     attack: 10,
     attackRate: 1,
     critChance: 0.05,
     critDamage: 1.5,
   },
   growthPerLevel: {
-    maxHp: 1.08,      // 8% per level
-    attack: 1.07,     // 7% per level
+    maxHp: 1.08,      // 8% per level (D24 frozen)
+    attack: 1.07,     // 7% per level (D24 frozen)
     attackRate: 1.0,  // 0% per level (D23)
     critChance: 1.0,  // 0% per level (D23)
     critDamage: 1.01, // 1% per level (unchanged)
