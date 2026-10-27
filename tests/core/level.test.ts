@@ -1,29 +1,33 @@
 import { describe, it, expect } from 'vitest';
 import { awardCharacterXp, awardXp, xpToNextLevel } from '../../src/core/level.js';
 import { createInitialState } from '../../src/core/engine.js';
+import { deriveStatsForLevel } from '../../src/core/stats.js';
 import type { CharacterState, GameState } from '../../src/core/types.js';
 import { defaultConfig } from '../helpers/config.js';
 
 describe('xpToNextLevel', () => {
   it('calculates XP threshold for starting levels per D12', () => {
-    // D12: xpToNext(level) = round(50 * 1.35^(level-1))
-    // level 1: round(50 * 1.35^0) = 50
-    expect(xpToNextLevel(1, defaultConfig.levelCurve)).toBe(50);
-    // level 2: round(50 * 1.35^1) = round(67.5) = 68
-    expect(xpToNextLevel(2, defaultConfig.levelCurve)).toBe(68);
-    // level 3: round(50 * 1.35^2) = round(91.125) = 91
-    expect(xpToNextLevel(3, defaultConfig.levelCurve)).toBe(91);
-    // level 4: round(50 * 1.35^3) = round(123.01875) = 123
-    expect(xpToNextLevel(4, defaultConfig.levelCurve)).toBe(123);
+    // D12: xpToNext(level) = round(baseXp * growthFactor^(level-1))
+    const { baseXp, growthFactor } = defaultConfig.levelCurve;
+    // level 1: round(baseXp * growthFactor^0)
+    expect(xpToNextLevel(1, defaultConfig.levelCurve)).toBe(Math.round(baseXp * Math.pow(growthFactor, 0)));
+    // level 2: round(baseXp * growthFactor^1)
+    expect(xpToNextLevel(2, defaultConfig.levelCurve)).toBe(Math.round(baseXp * Math.pow(growthFactor, 1)));
+    // level 3: round(baseXp * growthFactor^2)
+    expect(xpToNextLevel(3, defaultConfig.levelCurve)).toBe(Math.round(baseXp * Math.pow(growthFactor, 2)));
+    // level 4: round(baseXp * growthFactor^3)
+    expect(xpToNextLevel(4, defaultConfig.levelCurve)).toBe(Math.round(baseXp * Math.pow(growthFactor, 3)));
   });
 
   it('normalizes levels below 1 to level 1', () => {
-    expect(xpToNextLevel(0, defaultConfig.levelCurve)).toBe(50);
-    expect(xpToNextLevel(-5, defaultConfig.levelCurve)).toBe(50);
+    const level1Threshold = xpToNextLevel(1, defaultConfig.levelCurve);
+    expect(xpToNextLevel(0, defaultConfig.levelCurve)).toBe(level1Threshold);
+    expect(xpToNextLevel(-5, defaultConfig.levelCurve)).toBe(level1Threshold);
   });
 
   it('normalizes fractional levels by flooring', () => {
-    expect(xpToNextLevel(2.8, defaultConfig.levelCurve)).toBe(68);
+    const level2Threshold = xpToNextLevel(2, defaultConfig.levelCurve);
+    expect(xpToNextLevel(2.8, defaultConfig.levelCurve)).toBe(level2Threshold);
   });
 
   it('throws on non-finite level', () => {
@@ -57,11 +61,12 @@ describe('xpToNextLevel', () => {
 });
 
 describe('awardCharacterXp and awardXp', () => {
+  const startingMaxHp = deriveStatsForLevel(1, defaultConfig.character).maxHp;
   const baseCharacter: CharacterState = {
     level: 1,
     xp: 0,
     skillPoints: 0,
-    currentHp: 100,
+    currentHp: startingMaxHp,
   };
 
   it('returns unchanged character if awarded 0 XP', () => {
@@ -80,82 +85,89 @@ describe('awardCharacterXp and awardXp', () => {
     expect(result.level).toBe(1);
     expect(result.xp).toBe(30);
     expect(result.skillPoints).toBe(0);
-    expect(result.currentHp).toBe(100);
+    expect(result.currentHp).toBe(startingMaxHp);
   });
 
   it('levels up exactly once when meeting the threshold', () => {
-    // Level 1 threshold is 50 XP
-    const result = awardCharacterXp(baseCharacter, 50, defaultConfig.levelCurve);
+    const level1Threshold = xpToNextLevel(1, defaultConfig.levelCurve);
+    const result = awardCharacterXp(baseCharacter, level1Threshold, defaultConfig.levelCurve);
     expect(result.level).toBe(2);
     expect(result.xp).toBe(0);
     expect(result.skillPoints).toBe(1);
   });
 
   it('levels up and carries surplus XP to the next level', () => {
-    // 65 XP: 50 consumed for level 2, 15 carried over (threshold to level 3 is 68)
-    const result = awardCharacterXp(baseCharacter, 65, defaultConfig.levelCurve);
+    const level1Threshold = xpToNextLevel(1, defaultConfig.levelCurve);
+    const surplus = 15;
+    const result = awardCharacterXp(baseCharacter, level1Threshold + surplus, defaultConfig.levelCurve);
     expect(result.level).toBe(2);
-    expect(result.xp).toBe(15);
+    expect(result.xp).toBe(surplus);
     expect(result.skillPoints).toBe(1);
   });
 
   it('accounts for existing XP progress towards a level', () => {
+    const level1Threshold = xpToNextLevel(1, defaultConfig.levelCurve);
+    const existingXp = 40;
+    const surplus = 15;
     const partialChar: CharacterState = {
       level: 1,
-      xp: 40,
+      xp: existingXp,
       skillPoints: 0,
-      currentHp: 100,
+      currentHp: startingMaxHp,
     };
-    // 40 + 25 = 65 XP -> 50 consumed for level 2, 15 remaining
-    const result = awardCharacterXp(partialChar, 25, defaultConfig.levelCurve);
+    // existingXp + award = level1Threshold + surplus
+    const result = awardCharacterXp(partialChar, level1Threshold - existingXp + surplus, defaultConfig.levelCurve);
     expect(result.level).toBe(2);
-    expect(result.xp).toBe(15);
+    expect(result.xp).toBe(surplus);
     expect(result.skillPoints).toBe(1);
   });
 
   describe('multi-level jumps', () => {
     it('handles exact multi-level jumps (level 1 -> 3)', () => {
-      // Level 1 -> 2: 50 XP
-      // Level 2 -> 3: 68 XP
-      // Total: 118 XP
-      const result = awardCharacterXp(baseCharacter, 118, defaultConfig.levelCurve);
+      const level1to2 = xpToNextLevel(1, defaultConfig.levelCurve);
+      const level2to3 = xpToNextLevel(2, defaultConfig.levelCurve);
+      const totalXp = level1to2 + level2to3;
+      const result = awardCharacterXp(baseCharacter, totalXp, defaultConfig.levelCurve);
       expect(result.level).toBe(3);
       expect(result.xp).toBe(0);
       expect(result.skillPoints).toBe(2);
     });
 
     it('handles multi-level jumps with remainder (level 1 -> 3 with remainder)', () => {
-      // 50 + 68 + 12 = 130 XP
-      const result = awardCharacterXp(baseCharacter, 130, defaultConfig.levelCurve);
+      const level1to2 = xpToNextLevel(1, defaultConfig.levelCurve);
+      const level2to3 = xpToNextLevel(2, defaultConfig.levelCurve);
+      const remainder = 12;
+      const totalXp = level1to2 + level2to3 + remainder;
+      const result = awardCharacterXp(baseCharacter, totalXp, defaultConfig.levelCurve);
       expect(result.level).toBe(3);
-      expect(result.xp).toBe(12);
+      expect(result.xp).toBe(remainder);
       expect(result.skillPoints).toBe(2);
     });
 
     it('handles 3-level jump (level 1 -> 4)', () => {
-      // Level 1 -> 2: 50
-      // Level 2 -> 3: 68
-      // Level 3 -> 4: 91
-      // Total: 209 XP
-      const result = awardCharacterXp(baseCharacter, 209, defaultConfig.levelCurve);
+      const level1to2 = xpToNextLevel(1, defaultConfig.levelCurve);
+      const level2to3 = xpToNextLevel(2, defaultConfig.levelCurve);
+      const level3to4 = xpToNextLevel(3, defaultConfig.levelCurve);
+      const totalXp = level1to2 + level2to3 + level3to4;
+      const result = awardCharacterXp(baseCharacter, totalXp, defaultConfig.levelCurve);
       expect(result.level).toBe(4);
       expect(result.xp).toBe(0);
       expect(result.skillPoints).toBe(3);
     });
 
     it('handles large XP awards across many levels', () => {
-      // 1000 XP
-      // L1: 50   (rem 950) -> L2, SP 1
-      // L2: 68   (rem 882) -> L3, SP 2
-      // L3: 91   (rem 791) -> L4, SP 3
-      // L4: 123  (rem 668) -> L5, SP 4
-      // L5: 166  (rem 502) -> L6, SP 5
-      // L6: 224  (rem 278) -> L7, SP 6
-      // L7: 303  (rem 278 < 303) -> stops at L7 with 278 XP
-      const result = awardCharacterXp(baseCharacter, 1000, defaultConfig.levelCurve);
-      expect(result.level).toBe(7);
-      expect(result.xp).toBe(278);
-      expect(result.skillPoints).toBe(6);
+      // Award 1000 XP and compute expected level/remainder
+      const awardedXp = 1000;
+      let remaining = awardedXp;
+      let level = 1;
+      while (remaining >= xpToNextLevel(level, defaultConfig.levelCurve)) {
+        remaining -= xpToNextLevel(level, defaultConfig.levelCurve);
+        level++;
+      }
+      const result = awardCharacterXp(baseCharacter, awardedXp, defaultConfig.levelCurve);
+      expect(result.level).toBe(level);
+      expect(result.xp).toBe(remaining);
+      expect(result.skillPoints).toBe(level - 1);
     });
   });
 
@@ -191,7 +203,7 @@ describe('awardCharacterXp and awardXp', () => {
         level: 1,
         xp: 10,
         skillPoints: 0,
-        currentHp: 100,
+        currentHp: startingMaxHp,
       };
       const snapshot = JSON.stringify(input);
       awardCharacterXp(input, 150, defaultConfig.levelCurve);
@@ -202,14 +214,19 @@ describe('awardCharacterXp and awardXp', () => {
       const state: GameState = createInitialState(123, defaultConfig);
       const snapshot = JSON.stringify(state);
 
-      const nextState = awardXp(state, 120, defaultConfig.levelCurve);
+      // Award enough XP to reach level 3 with 2 XP remainder
+      const level1to2 = xpToNextLevel(1, defaultConfig.levelCurve);
+      const level2to3 = xpToNextLevel(2, defaultConfig.levelCurve);
+      const remainder = 2;
+      const awardedXp = level1to2 + level2to3 + remainder;
+      const nextState = awardXp(state, awardedXp, defaultConfig.levelCurve);
 
       // Input state is not mutated
       expect(JSON.stringify(state)).toBe(snapshot);
 
       // Character was updated
       expect(nextState.character.level).toBe(3);
-      expect(nextState.character.xp).toBe(2);
+      expect(nextState.character.xp).toBe(remainder);
       expect(nextState.character.skillPoints).toBe(2);
 
       // Non-character fields remain preserved

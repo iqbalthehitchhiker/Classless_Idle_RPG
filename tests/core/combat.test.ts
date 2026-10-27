@@ -10,6 +10,7 @@ import {
   stepCombat,
   spawnWaveEnemies,
   deriveStatsForLevel,
+  xpToNextLevel,
 } from '../../src/core/index.js';
 import * as statsModule from '../../src/core/stats.js';
 import type { EnemyState, GameState } from '../../src/core/types.js';
@@ -412,12 +413,11 @@ describe('Combat Engine (M1-07)', () => {
   // 6. Player Defeat
   // -------------------------------------------------------------------------
   it('triggers defeat handling (retreat + recovery) when HP reaches 0', () => {
-    // Enemy that deals fatal damage in 1 attack
     const lethalEnemy: EnemyDef = {
       id: 'reaper',
       name: 'Reaper',
       maxHp: 10000,
-      damage: 150, // Player max HP is 100 at level 1
+      damage: 300, // Enough to defeat player (maxHp is 200 at level 1)
       attackInterval: 0.5,
       xpReward: 0,
       isBoss: false,
@@ -442,7 +442,8 @@ describe('Combat Engine (M1-07)', () => {
     state = { ...state, unlockedStages: [...state.unlockedStages, 'lethal-stage'] };
     state = startCombat(state, 'lethal-stage', { ...defaultConfig, content: customContent });
 
-    expect(state.combat!.playerHp).toBe(100);
+    const initialMaxHp = deriveStatsForLevel(state.character.level, defaultConfig.character).maxHp;
+    expect(state.combat!.playerHp).toBe(initialMaxHp);
     expect(state.combat!.phase.type).toBe('active');
 
     // 5 steps (0.5 s): reaper attacks and deals 150 damage
@@ -467,13 +468,14 @@ describe('Combat Engine (M1-07)', () => {
   // 7. XP award and level-up on kill
   // -------------------------------------------------------------------------
   it('awards XP on kill and triggers level-up', () => {
+    const level1Threshold = xpToNextLevel(1, defaultConfig.levelCurve);
     const xpEnemy: EnemyDef = {
       id: 'xp-blob',
       name: 'XP Blob',
       maxHp: 5,
       damage: 0,
       attackInterval: 10.0,
-      xpReward: 50, // Exactly enough for level 1 -> 2
+      xpReward: level1Threshold, // Exactly enough for level 1 -> 2
       isBoss: false,
       onHitEffects: [],
     };
@@ -798,7 +800,8 @@ describe('Combat Engine (M1-07)', () => {
 
     // d) Mid-step level up: enemy kill awards XP -> player levels up -> next hit in same step uses new level stats; currentHp unchanged (D15)
     it('mid-step level-up applies higher attack to subsequent hit without modifying currentHp (D15)', () => {
-      // Enemy 1: 5 HP, awards 50 XP (triggers level 1 -> 2 level up)
+      const level1Threshold = xpToNextLevel(1, defaultConfig.levelCurve);
+      // Enemy 1: 5 HP, awards enough XP to trigger level 1 -> 2 level up
       // Enemy 2: 100 HP, to observe damage from second hit in the same step
       const mob1: EnemyDef = {
         id: 'xp-mob-1',
@@ -806,7 +809,7 @@ describe('Combat Engine (M1-07)', () => {
         maxHp: 5,
         damage: 0,
         attackInterval: 10.0,
-        xpReward: 50,
+        xpReward: level1Threshold,
         isBoss: false,
         onHitEffects: [],
       };
@@ -845,7 +848,7 @@ describe('Combat Engine (M1-07)', () => {
       state = { ...state, unlockedStages: [...state.unlockedStages, 'multi-hit-stage'] };
       state = startCombat(state, 'multi-hit-stage', { ...defaultConfig, content: customContent });
 
-      // Force player to have taken 20 damage (currentHp = 80, playerHp = 80)
+      // Force player to have taken damage (arbitrary reduced HP to test D15 behavior)
       state = {
         ...state,
         character: {
@@ -869,7 +872,7 @@ describe('Combat Engine (M1-07)', () => {
 
       try {
         // In 0.1s (100 ms dtMs), playerTimerMs reaches 2000 ms.
-        // Attack 1 (at level 1 attack: 10): kills Mob 1 (5 HP). Awards 50 XP -> Level-up to Level 2!
+        // Attack 1 (at level 1 attack: 10): kills Mob 1 (5 HP). Awards XP -> Level-up to Level 2!
         // D15: currentHp must remain 80 (not healed to full).
         // Attack 2 (at level 2): attack stat is 10 * 1.07 = 10.7. Mob 2 takes 10.7 damage.
         state = stepCombat(state, 0.1, { ...defaultConfig, content: customContent });
