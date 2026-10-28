@@ -276,7 +276,8 @@ describe('Timed Effects System (M1-08)', () => {
       waves: ['dot-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
-        minWavesBeforeBoss: 1,
+      minWavesBeforeBoss: 1,
+      requirements: [],
     };
     const customContent = makeCustomContent({
       enemies: [dotVictim],
@@ -345,7 +346,8 @@ describe('Timed Effects System (M1-08)', () => {
       waves: ['stun-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
-        minWavesBeforeBoss: 5,
+      minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent = makeCustomContent({
       effects: [testStunDef],
@@ -423,7 +425,8 @@ describe('Timed Effects System (M1-08)', () => {
       waves: ['fragile-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
-        minWavesBeforeBoss: 1,
+      minWavesBeforeBoss: 1,
+      requirements: [],
     };
     const customContent = makeCustomContent({
       effects: [testStunDef],
@@ -492,7 +495,8 @@ describe('Timed Effects System (M1-08)', () => {
       waves: ['ts-w1', 'ts-w2'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
-        minWavesBeforeBoss: 5,
+      minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent: Content = {
       effects: defaultConfig.content.effects,

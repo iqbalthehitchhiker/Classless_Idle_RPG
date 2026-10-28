@@ -1410,7 +1410,8 @@ describe('Fix 2: stunnedAtStart flag behavior', () => {
       waves: ['stun-exp-w'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
-        minWavesBeforeBoss: 5,
+      minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent = makeCustomContent({
       enemies: [lethalEnemy],
@@ -1594,7 +1595,8 @@ describe('Fix 3: Coverage for startCombat and error paths', () => {
       waves: ['killer-wave'],
       boss: 'goblin-chief',
       bossXpBonus: 0,
-        minWavesBeforeBoss: 5,
+      minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent = makeCustomContent({
       enemies: [lethalEnemy, harmlessEnemy],
