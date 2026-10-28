@@ -95,7 +95,9 @@ export type LogEventType =
   | 'stageUnlocked'
   | 'levelUp'
   | 'playerDefeated'
-  | 'recoveryEnded';
+  | 'recoveryEnded'
+  | 'skillLearned'
+  | 'skillsReset';
 
 export interface LogEntry {
   readonly tMs: number;        // game clock time in integer milliseconds
@@ -124,6 +126,7 @@ export interface GameState {
   readonly remainderMs: number;       // integer, 0–99, sub-step carry for advance()
   readonly elapsedMs: number;         // game clock in integer milliseconds, advanced by advance()
   readonly log: readonly LogEntry[];  // newest entries appended, capped at MAX_LOG_ENTRIES
+  readonly purchasedNodes: readonly string[]; // M2-02: purchased skill tree nodes
 }
 
 // ---------------------------------------------------------------------------
@@ -136,4 +139,9 @@ export type Action =
   | { readonly type: 'startActivity'; readonly activityId: string; readonly params: Record<string, unknown> }
   | { readonly type: 'stopActivity' }
   | { readonly type: 'setAutoProgress'; readonly enabled: boolean }
-  | { readonly type: 'challengeBoss' };
+  | { readonly type: 'challengeBoss' }
+  | { readonly type: 'purchaseNode'; readonly nodeId: string }
+  | { readonly type: 'respec' };
+
+/** Result of a rule check (canPurchaseNode / canRespec). */
+export type CheckResult = { readonly ok: true } | { readonly ok: false; readonly reason: string };

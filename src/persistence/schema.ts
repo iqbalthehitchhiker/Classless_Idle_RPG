@@ -30,6 +30,8 @@ const logEntrySchema = z.object({
     'levelUp',
     'playerDefeated',
     'recoveryEnded',
+    'skillLearned',
+    'skillsReset',
   ]),
   detail: z.string(),
 });

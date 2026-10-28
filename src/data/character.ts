@@ -48,6 +48,10 @@ export const characterStatsSchema = z.object({
   growthPerLevel: growthRatesSchema,
   /** Level at which a new character starts. */
   startingLevel: z.number().int().positive(),
+  /** Critical chance is clamped to this maximum (D28). Required, no default. */
+  critChanceCap: z.number().min(0).max(1),
+  /** Attack rate (attacks per second) has this data minimum (D28). Required, no default. */
+  attackRateMin: z.number().positive(),
 });
 
 export type BaseStats = z.infer<typeof baseStatsSchema>;
@@ -70,4 +74,6 @@ export const characterStats: CharacterStatsData = characterStatsSchema.parse({
     critDamage: 1.01, // 1% per level (unchanged)
   },
   startingLevel: 1,
+  critChanceCap: 1.0,
+  attackRateMin: 0.1,
 });

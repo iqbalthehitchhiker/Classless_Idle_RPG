@@ -15,10 +15,12 @@
  * No Math.random(), Date.now(), localStorage, or DOM access here.
  */
 
-import { deriveStatsForLevel } from './stats.js';
+import { deriveStatsForLevel, deriveStats, canPurchaseNode, canRespec } from './stats.js';
 import { startCombat, challengeBoss } from './combat/index.js';
 import type { GameConfig, GameState, Action } from './types.js';
 import { getActivity } from './activities.js';
+import { appendLog } from './log.js';
+import { add, sub } from './num.js';
 
 // ---------------------------------------------------------------------------
 // Constants (exported so tests can pin them)
@@ -57,6 +59,7 @@ export function createInitialState(
     remainderMs: 0,
     elapsedMs: 0,
     log: [],
+    purchasedNodes: [],
   } satisfies GameState;
 }
 
@@ -191,6 +194,78 @@ export function dispatch(state: GameState, action: Action, config: GameConfig): 
 
     case 'challengeBoss': {
       return challengeBoss(state, config);
+    }
+
+    case 'purchaseNode': {
+      const check = canPurchaseNode(state, action.nodeId, config);
+      if (!check.ok) {
+        // Rejected: no state change
+        return state;
+      }
+
+      const node = config.content.skillNodes.get(action.nodeId);
+      if (!node) return state; // Should never happen after canPurchaseNode
+
+      // Subtract cost and append to purchasedNodes
+      const updatedState: GameState = {
+        ...state,
+        character: {
+          ...state.character,
+          skillPoints: sub(state.character.skillPoints, node.cost),
+        },
+        purchasedNodes: [...state.purchasedNodes, action.nodeId],
+      };
+
+      // Log the purchase
+      return appendLog(updatedState, {
+        tMs: updatedState.elapsedMs,
+        type: 'skillLearned',
+        detail: `Skill learned: ${node.name}`,
+      });
+    }
+
+    case 'respec': {
+      const check = canRespec(state);
+      if (!check.ok) {
+        // Rejected: no state change
+        return state;
+      }
+
+      // Calculate total refund
+      let totalRefund = 0;
+      for (const nodeId of state.purchasedNodes) {
+        const node = config.content.skillNodes.get(nodeId);
+        if (node) {
+          totalRefund = add(totalRefund, node.cost);
+        }
+      }
+
+      // Refund points and clear purchased nodes
+      let updatedState: GameState = {
+        ...state,
+        character: {
+          ...state.character,
+          skillPoints: add(state.character.skillPoints, totalRefund),
+        },
+        purchasedNodes: [],
+      };
+
+      // Max HP may have changed; clamp currentHp to new derived maxHp (D15)
+      const newMaxHp = deriveStats(updatedState, config).maxHp;
+      updatedState = {
+        ...updatedState,
+        character: {
+          ...updatedState.character,
+          currentHp: Math.min(updatedState.character.currentHp, newMaxHp),
+        },
+      };
+
+      // Log the respec
+      return appendLog(updatedState, {
+        tMs: updatedState.elapsedMs,
+        type: 'skillsReset',
+        detail: 'Skills reset',
+      });
     }
 
     default: {

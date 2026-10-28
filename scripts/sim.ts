@@ -3,7 +3,7 @@
  * Usage: npx tsx scripts/sim.ts [seconds] [seed]
  * Defaults: 300 seconds, seed 1
  */
-import { createInitialState, advance, dispatch, canChallengeBoss } from '../src/core/index.js';
+import { createInitialState, advance, dispatch, canChallengeBoss, deriveStats } from '../src/core/index.js';
 import { defaultConfig } from '../src/data/index.js';
 import type { LogEntry } from '../src/core/types.js';
 
@@ -16,6 +16,66 @@ const BOT_BOSS_LEVEL = 8;
 
 const STEP = 0.1;
 let state = createInitialState(seed, defaultConfig);
+
+// M2-02: Print skill tree stats and test purchases
+console.log('=== Skill Tree ===');
+const totalNodes = defaultConfig.content.skillNodes.size;
+let totalCost = 0;
+for (const node of defaultConfig.content.skillNodes.values()) {
+  totalCost += node.cost;
+}
+console.log(`Total nodes: ${totalNodes}`);
+console.log(`Total cost of all nodes: ${totalCost}`);
+
+// Give enough skill points and purchase a fixed path
+state = { ...state, character: { ...state.character, skillPoints: totalCost } };
+
+const statsBefore = deriveStats(state, defaultConfig);
+console.log('\n=== Stats Before Purchases ===');
+console.log(`Max HP: ${statsBefore.maxHp.toFixed(2)}`);
+console.log(`Attack: ${statsBefore.attack.toFixed(2)}`);
+console.log(`Attack Rate: ${statsBefore.attackRate.toFixed(2)}`);
+console.log(`Crit Chance: ${(statsBefore.critChance * 100).toFixed(2)}%`);
+console.log(`Crit Damage: ${statsBefore.critDamage.toFixed(2)}x`);
+
+// Purchase: center root, then Berserker entry, then onward as far as points allow
+const purchasePath = [
+  'center-root',
+  'center-attack-1',
+  'center-hp-2',
+  'center-crit-1',
+  'center-attack-2',
+  'berserker-entry',
+  'berserker-crit-damage',
+  // Skip berserker-attack-speed (requires proficiency)
+  // Continue with remaining affordable nodes
+  'center-hp-3',
+  'paladin-entry',
+  'paladin-hp-2',
+];
+
+for (const nodeId of purchasePath) {
+  const node = defaultConfig.content.skillNodes.get(nodeId);
+  if (!node) continue;
+  
+  // Skip nodes with proficiency requirements
+  const hasProficiencyReq = node.requirements.some(req => req.kind === 'proficiency');
+  if (hasProficiencyReq) continue;
+  
+  state = dispatch(state, { type: 'purchaseNode', nodeId }, defaultConfig);
+}
+
+const statsAfter = deriveStats(state, defaultConfig);
+console.log('\n=== Stats After Purchases ===');
+console.log(`Max HP: ${statsAfter.maxHp.toFixed(2)}`);
+console.log(`Attack: ${statsAfter.attack.toFixed(2)}`);
+console.log(`Attack Rate: ${statsAfter.attackRate.toFixed(2)}`);
+console.log(`Crit Chance: ${(statsAfter.critChance * 100).toFixed(2)}%`);
+console.log(`Crit Damage: ${statsAfter.critDamage.toFixed(2)}x`);
+console.log(`Purchased nodes: ${state.purchasedNodes.length}`);
+console.log(`Remaining skill points: ${state.character.skillPoints}`);
+
+console.log('\n=== Starting Combat ===');
 state = dispatch(state, { type: 'startActivity', activityId: 'combat', params: { stageId: defaultConfig.content.startingStageId } }, defaultConfig);
 
 function newEntries(log: readonly LogEntry[], last: LogEntry | null): readonly LogEntry[] {

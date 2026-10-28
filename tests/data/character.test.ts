@@ -5,6 +5,8 @@ const valid = {
   base: { maxHp: 100, attack: 10, attackRate: 1, critChance: 0.05, critDamage: 1.5 },
   growthPerLevel: { maxHp: 1.08, attack: 1.07, attackRate: 1.02, critChance: 1.04, critDamage: 1.01 },
   startingLevel: 1,
+  critChanceCap: 1.0,
+  attackRateMin: 0.1,
 };
 
 describe('character stats data', () => {
