@@ -26,6 +26,6 @@ export type LevelCurveConfig = z.infer<typeof levelCurveConfigSchema>;
 
 export const levelCurve: LevelCurveConfig = levelCurveConfigSchema.parse({
   baseXp: 180,      // M1-15: base for level curve balance
-  growthFactor: 1.13,
+  growthFactor: 1.14,
   skillPointsPerLevel: 1,
 });

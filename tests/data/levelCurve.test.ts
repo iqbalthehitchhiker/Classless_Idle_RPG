@@ -4,7 +4,7 @@ import { levelCurve, levelCurveConfigSchema } from '../../src/data/levelCurve.js
 describe('levelCurve data and schema', () => {
   it('loads valid default level curve per D12', () => {
     expect(levelCurve.baseXp).toBe(180);
-    expect(levelCurve.growthFactor).toBe(1.13);
+    expect(levelCurve.growthFactor).toBe(1.14);
     expect(levelCurve.skillPointsPerLevel).toBe(1);
     expect(levelCurve.maxLevel).toBeUndefined();
   });
