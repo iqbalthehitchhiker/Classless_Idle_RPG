@@ -1,5 +1,20 @@
 # Milestone 1: Core Gameplay Loop
 
+## Status: Phase 1 complete
+Done: M1-01 to M1-15. Backlog: M1-16 (optional save export/import).
+Fun check (playtest-1 and playtest-2): the loop runs and holds up at low attention, but there are few decisions to make. Answer: build preparation systems (Phase 2, economy).
+
+### Added beyond the original plan
+Wave loop and Challenge Boss (D2, D22), always-visible reset save, design tokens (visual-decisions.md), boss bar, game/real timers with level splits.
+
+### Known debt (not blocking Phase 2)
+- Branch coverage below 90% on combat/engine.ts (about 88%) and combat/effects.ts (about 69%).
+- Simulation loops in boss.test.ts have no step cap that throws.
+- Mutation checks done for crit, burn refresh, stun, DoT XP, and the D14 tie; not for the unlock guard, the D18 heal, or boss bonus XP.
+- scripts/balance.ts counts boss deaths as wave deaths.
+- Level-5 boss wins about two thirds of the time (D26, deliberately not tuned).
+- Still OPEN: D13, D21, D24, D25, D26.
+
 Goal: prove that watching automatic combat and leveling is engaging. Nothing else matters yet.
 
 Scope reference: SRS section 6, Phase 1. Decisions: `docs/decisions.md`.
@@ -29,7 +44,7 @@ Scope reference: SRS section 6, Phase 1. Decisions: `docs/decisions.md`.
 
 ### UI
 - [x] **M1-14 Minimal UI.** Character panel (level, XP bar, HP, stats), combat panel (stage, wave, enemy HP bars, active effects, log), controls (start/stop, autoProgress). Fixed UI loop calls `advance` with real elapsed time. UI holds no rules.
-- [ ] **M1-15 Balance pass.** Tune data so a new player clears the boss in roughly 10-15 minutes with at least one defeat on the way. Data changes only.
+- [x] **M1-15 Balance pass.** Tune data so a new player clears the boss in roughly 10-15 minutes with at least one defeat on the way. Data changes only.
 
 ### Polish (optional)
 - [ ] **M1-16 Save export/import** as a text string.
