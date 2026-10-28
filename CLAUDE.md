@@ -25,6 +25,7 @@ tests/            Vitest, mirrors src/core
 7. Every save has `version`. Invalid saves are rejected, never half-applied.
 8. UI contains zero combat or progression math.
 9. Raw arithmetic: game values go through `core/num.ts`; integer-millisecond time-step bookkeeping in `core/engine.ts` is exempt.
+10. For any visual design, read visual-decisions.md for how to implement it.
 
 ## Commands
 `npm run dev` / `npm test` / `npm run typecheck` / `npm run build`
@@ -34,3 +35,6 @@ Typecheck passes, tests for new core logic pass, no rule above violated, task ch
 
 ## Working style
 Do one task at a time, in order. Stop and ask when a task needs a decision not covered in `decisions.md`; add it to that file as OPEN.
+
+## Visual changes
+Before any UI or visual change, read `docs/visual-decisions.md` for how to implement it. Use only tokens from src/ui/tokens.css: no hex codes, no hardcoded px sizes or fonts outside it. If a needed token is missing, add a commented PLACEHOLDER token and list it in the report. After the change, run the hex and px greps and paste the output in the report.
