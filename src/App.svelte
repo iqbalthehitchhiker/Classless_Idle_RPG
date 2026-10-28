@@ -7,7 +7,60 @@
   let timeSinceLastSave = $state(0);
   let showResetConfirm = $state(false);
   let showResetSaveConfirm = $state(false);
-  
+
+  // Timers
+  let realStartMs = performance.now();
+  let showSplits = $state(false);
+  let splits: Array<{ level: number; gameTimeMs: number }> = $state([]);
+  let prevGameMs = $state(0);
+  let prevRealMs = $state(0);
+  let speedRatio = $state(0);
+  let prevLevel = $state(0);
+  let realTimeMs = $state(0);
+
+  function formatTime(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  // Track level splits and speed ratio from state changes
+  $effect(() => {
+    const state = $gameStore.state;
+    const now = performance.now();
+    const currentGameMs = state.elapsedMs;
+    const currentLevel = state.character.level;
+
+    // Record level split when level increases between consecutive states
+    if (prevLevel > 0 && currentLevel > prevLevel) {
+      splits = [...splits, { level: currentLevel, gameTimeMs: currentGameMs }];
+    }
+    prevLevel = currentLevel;
+
+    // Speed ratio: game seconds per real second over the last second
+    if (prevRealMs > 0 && now - prevRealMs >= 1000) {
+      speedRatio = (currentGameMs - prevGameMs) / (now - prevRealMs);
+      prevGameMs = currentGameMs;
+      prevRealMs = now;
+    } else if (prevRealMs === 0) {
+      prevGameMs = currentGameMs;
+      prevRealMs = now;
+    }
+  });
+
+  // Real time wall clock since page load
+  $effect(() => {
+    const interval = setInterval(() => {
+      realTimeMs = performance.now() - realStartMs;
+    }, 100);
+    return () => clearInterval(interval);
+  });
+
   // Update "time since last save" every second
   $effect(() => {
     const interval = setInterval(() => {
@@ -45,11 +98,21 @@
   function handleResetConfirm() {
     resetAndClearError();
     showResetConfirm = false;
+    splits = [];
+    prevLevel = 0;
+    prevGameMs = 0;
+    prevRealMs = 0;
+    speedRatio = 0;
   }
-  
+
   function handleResetSaveConfirm() {
     resetAndClearError();
     showResetSaveConfirm = false;
+    splits = [];
+    prevLevel = 0;
+    prevGameMs = 0;
+    prevRealMs = 0;
+    speedRatio = 0;
   }
   
   function handleChallengeBoss() {
@@ -128,7 +191,28 @@
     <span style="margin-left: var(--space-4);">Cleared: [{$gameStore.state.clearedStages.join(', ') || 'none'}]</span>
     <span style="margin-left: var(--space-4);">Unlocked: [{$gameStore.state.unlockedStages.join(', ')}]</span>
   </div>
-  
+
+  <!-- Timers Row -->
+  <div class="timers-row">
+    <span class="timers-label">Game:</span>
+    <span class="timers-value">{formatTime($gameStore.state.elapsedMs)}</span>
+    <span class="timers-label">Real:</span>
+    <span class="timers-value">{formatTime(realTimeMs)}</span>
+    <span class="timers-label">Speed:</span>
+    <span class="timers-value">{speedRatio.toFixed(1)}x</span>
+    <button onclick={() => showSplits = !showSplits} class="timers-toggle">
+      {showSplits ? '\u25BC' : '\u25B6'} Level splits
+    </button>
+  </div>
+
+  {#if showSplits}
+    <div class="splits-list">
+      {#each splits as split}
+        <div class="split-entry">Lv {split.level} at {formatTime(split.gameTimeMs)}</div>
+      {/each}
+    </div>
+  {/if}
+
   <!-- Character Panel -->
   <section class="panel">
     <h2>Character</h2>
@@ -425,6 +509,55 @@
   .log div {
     padding: var(--space-1) 0;
     border-bottom: var(--border-width) solid var(--color-border);
+  }
+
+  .timers-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3);
+    background: var(--color-panel);
+    border: var(--frame-flat);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-4);
+    font-size: var(--text-xs);
+  }
+
+  .timers-label {
+    color: var(--color-muted);
+  }
+
+  .timers-value {
+    color: var(--color-text);
+  }
+
+  .timers-toggle {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: var(--color-accent);
+    cursor: pointer;
+    padding: 0;
+    font-size: var(--text-xs);
+    font-family: var(--font-body);
+  }
+
+  .timers-toggle:hover {
+    color: var(--color-muted);
+  }
+
+  .splits-list {
+    margin-top: var(--space-2);
+    padding: var(--space-3);
+    background: var(--color-raised);
+    border: var(--frame-flat);
+    border-radius: var(--radius);
+  }
+
+  .split-entry {
+    color: var(--color-text);
+    font-size: var(--text-xs);
+    padding: var(--space-1) 0;
   }
   
   button {
