@@ -40,8 +40,8 @@ export const starterEnemies: EnemyDef[] = [
   {
     id: 'goblin-chief',
     name: 'Goblin Chief',
-    maxHp: 400,          // M1-15: increased from 200 to make boss harder at level 5
-    damage: 10,          // M1-15: reduced from 15
+    maxHp: 490,          // M1-15: adjusted to bring level 5 win rate ≤25%
+    damage: 12,          // M1-15: adjusted to bring level 5 win rate ≤25%
     attackInterval: 2.5,
     xpReward: 70,        // M1-15: reduced from 100
     isBoss: true,
