@@ -13,7 +13,7 @@ export * from './rng.js';
 export * from './types.js';
 export { createInitialState, advance, dispatch, STEP_MS, MAX_STEPS } from './engine.js';
 export { appendLog } from './log.js';
-export { deriveStats, deriveStatsForLevel, deriveOnHitEffects, canPurchaseNode, canRespec } from './stats.js';
+export { deriveStats, deriveStatsForLevel, deriveOnHitEffects, canPurchaseNode, canRespec, canStartStage } from './stats.js';
 export type { DerivedStats } from './stats.js';
 export { awardXp, awardCharacterXp, xpToNextLevel } from './level.js';
 export {
@@ -27,4 +27,6 @@ export {
 } from './combat/index.js';
 export type { Activity } from './activity.js';
 export { getActivity } from './activities.js';
+export { checkRequirements } from './requirements.js';
+export type { RequirementCheckResult, UnmetRequirement } from './requirements.js';
 

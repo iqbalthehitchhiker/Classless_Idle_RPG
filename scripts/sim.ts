@@ -235,3 +235,29 @@ if (!deserialized.ok) {
     console.log(`Round trip: FAILED - differing fields: ${diffFields.join(', ')}`);
   }
 }
+
+// M2-03: Test stage-2 requirements (runs in fresh state, separate from baseline)
+import { canStartStage } from '../src/core/index.js';
+
+console.log('\n=== M2-03: Stage-2 Requirement Test ===');
+let testState = createInitialState(42, defaultConfig);
+
+// Unlock stage-2 but leave proficiency at 0
+testState = { ...testState, unlockedStages: ['stage-1', 'stage-2'] };
+
+// Attempt to start stage-2 with proficiency 0 (should be rejected)
+const rejection = canStartStage(testState, 'stage-2', defaultConfig);
+if (rejection === 'ok') {
+  console.log('FAILED: Stage-2 should have been rejected with proficiency 0');
+} else {
+  console.log(`Stage-2 rejected (proficiency 0): ${rejection}`);
+}
+
+// Set proficiency swordsmanship to 3 and try again (should succeed)
+testState = { ...testState, proficiency: { ...testState.proficiency, swordsmanship: 3 } };
+const acceptance = canStartStage(testState, 'stage-2', defaultConfig);
+if (acceptance === 'ok') {
+  console.log('Stage-2 accepted (proficiency 3): ok');
+} else {
+  console.log(`FAILED: Stage-2 should have been accepted with proficiency 3, got: ${acceptance}`);
+}

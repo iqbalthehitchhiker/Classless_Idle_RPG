@@ -38,6 +38,14 @@ export function createInitialState(
   config: GameConfig,
 ): GameState {
   const startingLevel = config.character.startingLevel;
+  
+  // M2-03: Build proficiency placeholder from content (every discipline at level 0).
+  // M2-04 will replace this with real proficiency and XP progress.
+  const proficiency: Record<string, number> = {};
+  for (const discipline of config.content.disciplines.values()) {
+    proficiency[discipline.id] = 0;
+  }
+  
   return {
     version: 1,
     rng: { seed: seed >>> 0 },
@@ -60,6 +68,7 @@ export function createInitialState(
     elapsedMs: 0,
     log: [],
     purchasedNodes: [],
+    proficiency,
   } satisfies GameState;
 }
 

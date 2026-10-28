@@ -80,21 +80,57 @@ export const waveDefSchema = z
   .strict();
 
 // ---------------------------------------------------------------------------
-// 4. Stage Definition Schema
+// 4. Requirement Schema (M2-03)
 // ---------------------------------------------------------------------------
 
-export const stageDefSchema = z
-  .object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    waves: z.array(z.string().min(1)).min(1),
-    boss: z.string().min(1),
-    bossXpBonus: z.number().nonnegative(),
-    minWavesBeforeBoss: z.number().int().positive(),
-    unlocksStageId: z.string().min(1).optional(),
-  })
-  .strict();
-export type StageDef = z.infer<typeof stageDefSchema>;
+const requirementSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('level'),
+    level: z.number().int().positive(),
+  }),
+  z.object({
+    kind: z.literal('proficiency'),
+    disciplineId: z.string().min(1),
+    level: z.number().int().positive(),
+  }),
+  z.object({
+    kind: z.literal('node'),
+    nodeId: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal('stageCleared'),
+    stageId: z.string().min(1),
+  }),
+]);
+
+export type Requirement = z.infer<typeof requirementSchema>;
+
+// ---------------------------------------------------------------------------
+// 5. Stage Definition Schema
+// ---------------------------------------------------------------------------
+
+const stageDefBaseSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  waves: z.array(z.string().min(1)).min(1),
+  boss: z.string().min(1),
+  bossXpBonus: z.number().nonnegative(),
+  minWavesBeforeBoss: z.number().int().positive(),
+  unlocksStageId: z.string().min(1).optional(),
+  requirements: z.array(requirementSchema).optional(),
+});
+
+export const stageDefSchema = z.preprocess(
+  (data: any) => ({
+    ...data,
+    requirements: data.requirements ?? [],
+  }),
+  stageDefBaseSchema.extend({
+    requirements: z.array(requirementSchema),
+  }).strict()
+);
+
+export type StageDef = z.output<typeof stageDefSchema>;
 
 // ---------------------------------------------------------------------------
 // 6. Discipline and Skill Tree Schemas (M2-01)
@@ -117,20 +153,6 @@ export const proficiencyCurveSchema = z.object({
 });
 
 export type ProficiencyCurve = z.infer<typeof proficiencyCurveSchema>;
-
-const requirementSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('level'),
-    level: z.number().int().positive(),
-  }),
-  z.object({
-    kind: z.literal('proficiency'),
-    disciplineId: z.string().min(1),
-    level: z.number().int().positive(),
-  }),
-]);
-
-export type Requirement = z.infer<typeof requirementSchema>;
 
 const statBonusEffectSchema = z.object({
   kind: z.literal('statBonus'),
@@ -378,11 +400,15 @@ export function loadContent(raw: unknown): Content {
     }
   }
 
-  // 9d. Validate requirement discipline ids exist
+  // 9d. Validate requirement discipline ids, node ids, and stage ids exist
   for (const node of parsed.skillNodes) {
     for (const req of node.requirements) {
       if (req.kind === 'proficiency' && !disciplines.has(req.disciplineId)) {
         errors.push(`Node '${node.id}' requirement references nonexistent discipline '${req.disciplineId}'`);
+      } else if (req.kind === 'node' && !skillNodes.has(req.nodeId)) {
+        errors.push(`Node '${node.id}' requirement references nonexistent node '${req.nodeId}'`);
+      } else if (req.kind === 'stageCleared' && !stages.has(req.stageId)) {
+        errors.push(`Node '${node.id}' requirement references nonexistent stage '${req.stageId}'`);
       }
     }
   }
@@ -400,6 +426,19 @@ export function loadContent(raw: unknown): Content {
   for (const node of parsed.skillNodes) {
     if (node.branch !== 'center' && node.prerequisites.length === 0) {
       errors.push(`Node '${node.id}' is in branch '${node.branch}' but has no prerequisites`);
+    }
+  }
+
+  // 10. Validate stage requirement references
+  for (const stage of parsed.stages) {
+    for (const req of stage.requirements) {
+      if (req.kind === 'proficiency' && !disciplines.has(req.disciplineId)) {
+        errors.push(`Stage '${stage.id}' requirement references nonexistent discipline '${req.disciplineId}'`);
+      } else if (req.kind === 'node' && !skillNodes.has(req.nodeId)) {
+        errors.push(`Stage '${stage.id}' requirement references nonexistent node '${req.nodeId}'`);
+      } else if (req.kind === 'stageCleared' && !stages.has(req.stageId)) {
+        errors.push(`Stage '${stage.id}' requirement references nonexistent stage '${req.stageId}'`);
+      }
     }
   }
 

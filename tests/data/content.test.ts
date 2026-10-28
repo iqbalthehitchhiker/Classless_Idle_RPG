@@ -371,6 +371,105 @@ describe('Content loading and cross-reference validation (M1-06)', () => {
       badNodes.skillNodes.push({ ...badNodes.skillNodes[0] });
       expect(() => loadContent(badNodes)).toThrowError(/Duplicate skillNode id: 'center-root'/);
     });
+
+    // M2-03: New requirement type validation
+    it('fails with ContentValidationError when node requirement references a nonexistent node', () => {
+      const bad = cloneStarter();
+      bad.skillNodes.push({
+        id: 'test-node',
+        name: 'Test',
+        branch: 'center',
+        cost: 1,
+        prerequisites: ['center-root'],
+        requirements: [{ kind: 'node', nodeId: 'missing-node-xyz' }],
+        pos: { x: 0, y: 10 },
+        effects: [{ kind: 'statBonus', stat: 'attack', mode: 'flat', value: 1 }],
+      });
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('missing-node-xyz');
+        expect(valErr.message).toContain('test-node');
+      }
+    });
+
+    it('fails with ContentValidationError when node requirement references a nonexistent stage', () => {
+      const bad = cloneStarter();
+      bad.skillNodes.push({
+        id: 'test-node',
+        name: 'Test',
+        branch: 'center',
+        cost: 1,
+        prerequisites: ['center-root'],
+        requirements: [{ kind: 'stageCleared', stageId: 'missing-stage-xyz' }],
+        pos: { x: 0, y: 10 },
+        effects: [{ kind: 'statBonus', stat: 'attack', mode: 'flat', value: 1 }],
+      });
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('missing-stage-xyz');
+        expect(valErr.message).toContain('test-node');
+      }
+    });
+
+    it('fails with ContentValidationError when stage requirement references a nonexistent discipline', () => {
+      const bad = cloneStarter();
+      bad.stages[0].requirements = [{ kind: 'proficiency', disciplineId: 'missing-discipline-xyz', level: 3 }];
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('missing-discipline-xyz');
+        expect(valErr.message).toContain(bad.stages[0].id);
+      }
+    });
+
+    it('fails with ContentValidationError when stage requirement references a nonexistent node', () => {
+      const bad = cloneStarter();
+      bad.stages[0].requirements = [{ kind: 'node', nodeId: 'missing-node-xyz' }];
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('missing-node-xyz');
+        expect(valErr.message).toContain(bad.stages[0].id);
+      }
+    });
+
+    it('fails with ContentValidationError when stage requirement references a nonexistent stage', () => {
+      const bad = cloneStarter();
+      bad.stages[0].requirements = [{ kind: 'stageCleared', stageId: 'missing-stage-xyz' }];
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('missing-stage-xyz');
+        expect(valErr.message).toContain(bad.stages[0].id);
+      }
+    });
   });
 
   // -------------------------------------------------------------------------

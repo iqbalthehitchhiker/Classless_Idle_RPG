@@ -14,10 +14,12 @@ export const starterStages: StageDef[] = [
     boss: 'goblin-chief',
     bossXpBonus: 50,
     minWavesBeforeBoss: 5,
+    requirements: [],
     unlocksStageId: 'stage-2',
   },
   // PLACEHOLDER STAGE: Resolves stage-1's unlocksStageId reference.
   // Reuses wave-1 and goblin-chief until Phase 1 / Phase 2 content expansion.
+  // M2-03: Requires Swordsmanship level 3 for testing.
   {
     id: 'stage-2',
     name: 'Goblin Stronghold (Placeholder)',
@@ -25,5 +27,12 @@ export const starterStages: StageDef[] = [
     boss: 'goblin-chief',
     bossXpBonus: 100,
     minWavesBeforeBoss: 5,
+    requirements: [
+      {
+        kind: 'proficiency',
+        disciplineId: 'swordsmanship',
+        level: 3,
+      },
+    ],
   },
 ];

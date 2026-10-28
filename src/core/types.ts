@@ -127,6 +127,9 @@ export interface GameState {
   readonly elapsedMs: number;         // game clock in integer milliseconds, advanced by advance()
   readonly log: readonly LogEntry[];  // newest entries appended, capped at MAX_LOG_ENTRIES
   readonly purchasedNodes: readonly string[]; // M2-02: purchased skill tree nodes
+  // M2-03: Placeholder proficiency state. M2-04 replaces this with real proficiency and XP progress.
+  // Each discipline starts at level 0 by default. Built from content in createInitialState.
+  readonly proficiency?: Record<string, number>;
 }
 
 // ---------------------------------------------------------------------------

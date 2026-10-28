@@ -14,6 +14,7 @@
 import type { CharacterStatsData } from '../data/character.js';
 import { add, clamp, mul, pow, sub } from './num.js';
 import type { GameConfig, GameState } from './types.js';
+import { checkRequirements } from './requirements.js';
 
 export interface DerivedStats {
   readonly maxHp: number;
@@ -202,7 +203,11 @@ export function canPurchaseNode(
     }
   }
 
-  // M2-03: requirement check goes here (requirements are NOT enforced in this task)
+  // M2-03: requirement check
+  const reqCheck = checkRequirements(state, node.requirements, config);
+  if (!reqCheck.ok) {
+    return { ok: false, reason: reqCheck.unmet.map(u => u.text).join('; ') };
+  }
 
   if (node.cost > state.character.skillPoints) {
     return {
@@ -223,4 +228,30 @@ export function canRespec(state: GameState): { readonly ok: true } | { readonly 
     return { ok: false, reason: 'Cannot respec while an activity is running' };
   }
   return { ok: true };
+}
+
+/**
+ * Rule: can the player start a stage (M2-03)? Returns 'ok' or a reason string.
+ * Checks that the stage exists, is unlocked, and meets all requirements.
+ */
+export function canStartStage(
+  state: GameState,
+  stageId: string,
+  config: GameConfig,
+): 'ok' | string {
+  const stage = config.content.stages.get(stageId);
+  if (!stage) {
+    return `stage ${stageId} not found`;
+  }
+
+  if (!state.unlockedStages.includes(stageId)) {
+    return `stage ${stageId} is locked`;
+  }
+
+  const reqCheck = checkRequirements(state, stage.requirements, config);
+  if (!reqCheck.ok) {
+    return reqCheck.unmet.map(u => u.text).join('; ');
+  }
+
+  return 'ok';
 }

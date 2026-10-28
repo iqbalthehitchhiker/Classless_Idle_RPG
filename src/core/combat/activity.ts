@@ -7,6 +7,7 @@
 import type { Activity } from '../activity.js';
 import type { GameConfig, GameState } from '../types.js';
 import { startCombat as startCombatImpl, stepCombat } from './engine.js';
+import { canStartStage } from '../stats.js';
 
 export const combatActivity: Activity = {
   id: 'combat',
@@ -21,16 +22,7 @@ export const combatActivity: Activity = {
       return 'missing or invalid stageId parameter';
     }
 
-    if (!state.unlockedStages.includes(stageId)) {
-      return `stage ${stageId} is locked`;
-    }
-
-    const stage = config.content.stages.get(stageId);
-    if (!stage) {
-      return `stage ${stageId} not found`;
-    }
-
-    return 'ok';
+    return canStartStage(state, stageId, config);
   },
 
   start(
