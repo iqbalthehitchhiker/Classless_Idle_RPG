@@ -41,6 +41,22 @@ describe('Content loading and cross-reference validation (M1-06)', () => {
     expect(loaded.stages.get('stage-1')?.unlocksStageId).toBe('stage-2');
     expect(loaded.stages.get('stage-2')?.id).toBe('stage-2');
 
+    // Disciplines (M2-01)
+    expect(loaded.disciplines.size).toBe(2);
+    expect(loaded.disciplines.get('swordsmanship')?.name).toBe('Swordsmanship');
+    expect(loaded.disciplines.get('fortitude')?.name).toBe('Fortitude');
+
+    // Proficiency curve (M2-01)
+    expect(loaded.proficiencyCurve.baseXp).toBe(20);
+    expect(loaded.proficiencyCurve.growthFactor).toBe(1.3);
+    expect(loaded.proficiencyCurve.maxLevel).toBe(10);
+
+    // Skill nodes (M2-01)
+    expect(loaded.skillNodes.size).toBe(16);
+    expect(loaded.skillNodes.get('center-root')?.branch).toBe('center');
+    expect(loaded.skillNodes.get('berserker-ignite')?.cost).toBe(3);
+    expect(loaded.skillNodes.get('paladin-capstone')?.cost).toBe(3);
+
     // Raw preservation
     expect(loaded.raw).toBeDefined();
   });
@@ -220,6 +236,140 @@ describe('Content loading and cross-reference validation (M1-06)', () => {
       const badStages = cloneStarter();
       badStages.stages.push({ ...badStages.stages[0] });
       expect(() => loadContent(badStages)).toThrowError(/Duplicate stage id: 'stage-1'/);
+    });
+
+    it('fails with ContentValidationError when node prerequisite references a nonexistent node', () => {
+      const bad = cloneStarter();
+      bad.skillNodes[1].prerequisites = ['missing-node-xyz'];
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('missing-node-xyz');
+        expect(valErr.message).toContain(bad.skillNodes[1].id);
+      }
+    });
+
+    it('fails with ContentValidationError when node has a prerequisite cycle', () => {
+      const bad = cloneStarter();
+      // Create a cycle: center-root -> center-attack-1 -> center-root
+      bad.skillNodes[0].prerequisites = ['center-attack-1'];
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('cycle');
+      }
+    });
+
+    it('fails with ContentValidationError when node lists itself as prerequisite', () => {
+      const bad = cloneStarter();
+      bad.skillNodes[0].prerequisites = ['center-root'];
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('center-root');
+        expect(valErr.message).toContain('itself');
+      }
+    });
+
+    it('fails with ContentValidationError when node requirement references a nonexistent discipline', () => {
+      const bad = cloneStarter();
+      bad.skillNodes.push({
+        id: 'test-node',
+        name: 'Test',
+        branch: 'center',
+        cost: 1,
+        prerequisites: ['center-root'],
+        requirements: [{ kind: 'proficiency', disciplineId: 'missing-discipline-xyz', level: 3 }],
+        pos: { x: 0, y: 10 },
+        effects: [{ kind: 'statBonus', stat: 'attack', mode: 'flat', value: 1 }],
+      });
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('missing-discipline-xyz');
+        expect(valErr.message).toContain('test-node');
+      }
+    });
+
+    it('fails with ContentValidationError when node grantOnHitEffect references a nonexistent effect', () => {
+      const bad = cloneStarter();
+      bad.skillNodes.push({
+        id: 'test-ignite',
+        name: 'Test Ignite',
+        branch: 'center',
+        cost: 1,
+        prerequisites: ['center-root'],
+        requirements: [],
+        pos: { x: 0, y: 10 },
+        effects: [{ kind: 'grantOnHitEffect', effectId: 'missing-effect-xyz' }],
+      });
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('missing-effect-xyz');
+        expect(valErr.message).toContain('test-ignite');
+      }
+    });
+
+    it('fails with ContentValidationError when non-center node has no prerequisites', () => {
+      const bad = cloneStarter();
+      bad.skillNodes.push({
+        id: 'orphan-berserker',
+        name: 'Orphan',
+        branch: 'berserker',
+        cost: 2,
+        prerequisites: [],
+        requirements: [],
+        pos: { x: -5, y: 10 },
+        effects: [{ kind: 'statBonus', stat: 'attack', mode: 'flat', value: 1 }],
+      });
+
+      expect(() => loadContent(bad)).toThrowError(ContentValidationError);
+      try {
+        loadContent(bad);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ContentValidationError);
+        const valErr = err as ContentValidationError;
+        expect(valErr.message).toContain('orphan-berserker');
+        expect(valErr.message).toContain('berserker');
+        expect(valErr.message).toContain('no prerequisites');
+      }
+    });
+
+    it('fails with ContentValidationError on duplicate discipline or node ids', () => {
+      const badDisciplines = cloneStarter();
+      badDisciplines.disciplines.push({ ...badDisciplines.disciplines[0] });
+      expect(() => loadContent(badDisciplines)).toThrowError(/Duplicate discipline id: 'swordsmanship'/);
+
+      const badNodes = cloneStarter();
+      badNodes.skillNodes.push({ ...badNodes.skillNodes[0] });
+      expect(() => loadContent(badNodes)).toThrowError(/Duplicate skillNode id: 'center-root'/);
     });
   });
 

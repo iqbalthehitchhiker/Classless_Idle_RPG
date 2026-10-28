@@ -42,6 +42,9 @@ function makeCustomContent(overrides: {
     playerBaseOnHitEffects: defaultContent.playerBaseOnHitEffects,
     startingStageId: defaultContent.startingStageId,
     defeat: defaultContent.defeat,
+    disciplines: defaultContent.disciplines,
+    proficiencyCurve: defaultContent.proficiencyCurve,
+    skillNodes: defaultContent.skillNodes,
     raw: defaultContent.raw,
   };
 }
@@ -102,6 +105,9 @@ function makeTinyContent(options: {
       retreatWaves: 1,
       pauseSeconds: 3,
     },
+    disciplines: [],
+    proficiencyCurve: { baseXp: 20, growthFactor: 1.3, maxLevel: 10 },
+    skillNodes: [],
   });
 }
 

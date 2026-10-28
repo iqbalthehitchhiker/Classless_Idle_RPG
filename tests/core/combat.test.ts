@@ -47,6 +47,9 @@ function makeCustomContent(overrides: {
     playerBaseOnHitEffects: defaultContent.playerBaseOnHitEffects,
     startingStageId: defaultContent.startingStageId,
     defeat: defaultContent.defeat,
+    disciplines: defaultContent.disciplines,
+    proficiencyCurve: defaultContent.proficiencyCurve,
+    skillNodes: defaultContent.skillNodes,
     raw: defaultContent.raw,
   };
 }

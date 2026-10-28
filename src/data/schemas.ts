@@ -94,6 +94,80 @@ export const stageDefSchema = z
     unlocksStageId: z.string().min(1).optional(),
   })
   .strict();
+export type StageDef = z.infer<typeof stageDefSchema>;
+
+// ---------------------------------------------------------------------------
+// 6. Discipline and Skill Tree Schemas (M2-01)
+// ---------------------------------------------------------------------------
+
+export const disciplineDefSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+});
+
+export type DisciplineDef = z.infer<typeof disciplineDefSchema>;
+
+export const proficiencyCurveSchema = z.object({
+  /** Base XP required to advance from proficiency level 1 to 2. PLACEHOLDER. */
+  baseXp: z.number().positive(),
+  /** Multiplicative growth factor applied per proficiency level. PLACEHOLDER. */
+  growthFactor: z.number().min(1),
+  /** Maximum proficiency level. PLACEHOLDER. */
+  maxLevel: z.number().int().positive(),
+});
+
+export type ProficiencyCurve = z.infer<typeof proficiencyCurveSchema>;
+
+const requirementSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('level'),
+    level: z.number().int().positive(),
+  }),
+  z.object({
+    kind: z.literal('proficiency'),
+    disciplineId: z.string().min(1),
+    level: z.number().int().positive(),
+  }),
+]);
+
+export type Requirement = z.infer<typeof requirementSchema>;
+
+const statBonusEffectSchema = z.object({
+  kind: z.literal('statBonus'),
+  stat: z.enum(['maxHp', 'attack', 'critChance', 'attackRate', 'critDamage']),
+  mode: z.enum(['flat', 'percent']),
+  value: z.number(),
+});
+
+const grantOnHitEffectSchema = z.object({
+  kind: z.literal('grantOnHitEffect'),
+  effectId: z.string().min(1),
+});
+
+const skillNodeEffectSchema = z.discriminatedUnion('kind', [
+  statBonusEffectSchema,
+  grantOnHitEffectSchema,
+]);
+
+export type SkillNodeEffect = z.infer<typeof skillNodeEffectSchema>;
+
+export const skillNodeDefSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    branch: z.enum(['center', 'paladin', 'berserker']),
+    cost: z.number().int().positive(),
+    prerequisites: z.array(z.string().min(1)).default([]),
+    requirements: z.array(requirementSchema).default([]),
+    pos: z.object({
+      x: z.number().int(),
+      y: z.number().int(),
+    }),
+    effects: z.array(skillNodeEffectSchema).min(1),
+  })
+  .strict();
+
+export type SkillNodeDef = z.infer<typeof skillNodeDefSchema>;
 
 // ---------------------------------------------------------------------------
 // 5. Raw Content Schema & Inferred Types
@@ -115,6 +189,9 @@ export const rawContentSchema = z
     playerBaseOnHitEffects: z.array(z.string().min(1)),
     startingStageId: z.string().min(1),
     defeat: defeatConfigSchema,
+    disciplines: z.array(disciplineDefSchema),
+    proficiencyCurve: proficiencyCurveSchema,
+    skillNodes: z.array(skillNodeDefSchema),
   })
   .strict();
 
@@ -127,7 +204,6 @@ export type EffectDef = z.infer<typeof effectDefSchema>;
 export type EnemyDef = z.infer<typeof enemyDefSchema>;
 export type WaveEnemy = z.infer<typeof waveEnemySchema>;
 export type WaveDef = z.infer<typeof waveDefSchema>;
-export type StageDef = z.infer<typeof stageDefSchema>;
 export type RawContent = z.infer<typeof rawContentSchema>;
 
 // ---------------------------------------------------------------------------
@@ -142,6 +218,9 @@ export interface Content {
   readonly playerBaseOnHitEffects: readonly string[];
   readonly startingStageId: string;
   readonly defeat: DefeatConfig;
+  readonly disciplines: ReadonlyMap<string, DisciplineDef>;
+  readonly proficiencyCurve: ProficiencyCurve;
+  readonly skillNodes: ReadonlyMap<string, SkillNodeDef>;
   readonly raw: RawContent;
 }
 
@@ -195,6 +274,8 @@ export function loadContent(raw: unknown): Content {
   const enemies = collectDuplicates(parsed.enemies, 'enemy', errors);
   const waves = collectDuplicates(parsed.waves, 'wave', errors);
   const stages = collectDuplicates(parsed.stages, 'stage', errors);
+  const disciplines = collectDuplicates(parsed.disciplines, 'discipline', errors);
+  const skillNodes = collectDuplicates(parsed.skillNodes, 'skillNode', errors);
 
   // 2. Enemy onHitEffects referencing a missing effect
   for (const enemy of parsed.enemies) {
@@ -254,6 +335,74 @@ export function loadContent(raw: unknown): Content {
     errors.push(`startingStageId points to nonexistent stage '${parsed.startingStageId}'`);
   }
 
+  // 9. Skill node validation
+  // 9a. Validate prerequisite ids exist
+  for (const node of parsed.skillNodes) {
+    for (const prereqId of node.prerequisites) {
+      if (!skillNodes.has(prereqId)) {
+        errors.push(`Node '${node.id}' prerequisite references nonexistent node '${prereqId}'`);
+      }
+    }
+  }
+
+  // 9b. Validate no prerequisite cycles
+  function hasCycle(nodeId: string, visited: Set<string>, path: Set<string>): boolean {
+    if (path.has(nodeId)) return true;
+    if (visited.has(nodeId)) return false;
+    
+    visited.add(nodeId);
+    path.add(nodeId);
+    
+    const node = skillNodes.get(nodeId);
+    if (node) {
+      for (const prereqId of node.prerequisites) {
+        if (hasCycle(prereqId, visited, path)) return true;
+      }
+    }
+    
+    path.delete(nodeId);
+    return false;
+  }
+  
+  const visited = new Set<string>();
+  for (const node of parsed.skillNodes) {
+    if (hasCycle(node.id, visited, new Set())) {
+      errors.push(`Node '${node.id}' has a prerequisite cycle`);
+    }
+  }
+
+  // 9c. Validate node doesn't list itself as prerequisite
+  for (const node of parsed.skillNodes) {
+    if (node.prerequisites.includes(node.id)) {
+      errors.push(`Node '${node.id}' lists itself as a prerequisite`);
+    }
+  }
+
+  // 9d. Validate requirement discipline ids exist
+  for (const node of parsed.skillNodes) {
+    for (const req of node.requirements) {
+      if (req.kind === 'proficiency' && !disciplines.has(req.disciplineId)) {
+        errors.push(`Node '${node.id}' requirement references nonexistent discipline '${req.disciplineId}'`);
+      }
+    }
+  }
+
+  // 9e. Validate grantOnHitEffect effect ids exist
+  for (const node of parsed.skillNodes) {
+    for (const effect of node.effects) {
+      if (effect.kind === 'grantOnHitEffect' && !effects.has(effect.effectId)) {
+        errors.push(`Node '${node.id}' grantOnHitEffect references nonexistent effect '${effect.effectId}'`);
+      }
+    }
+  }
+
+  // 9f. Validate non-center nodes have prerequisites
+  for (const node of parsed.skillNodes) {
+    if (node.branch !== 'center' && node.prerequisites.length === 0) {
+      errors.push(`Node '${node.id}' is in branch '${node.branch}' but has no prerequisites`);
+    }
+  }
+
   if (errors.length > 0) {
     throw new ContentValidationError(errors);
   }
@@ -266,6 +415,9 @@ export function loadContent(raw: unknown): Content {
     playerBaseOnHitEffects: parsed.playerBaseOnHitEffects,
     startingStageId: parsed.startingStageId,
     defeat: parsed.defeat,
+    disciplines,
+    proficiencyCurve: parsed.proficiencyCurve,
+    skillNodes,
     raw: parsed,
   };
 }

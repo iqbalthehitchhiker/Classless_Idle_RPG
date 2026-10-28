@@ -7,11 +7,15 @@ import { starterEffects } from './effects.js';
 import { starterEnemies } from './enemies.js';
 import { starterWaves } from './waves.js';
 import { starterStages } from './stages.js';
+import { starterDisciplines, starterProficiencyCurve } from './disciplines.js';
+import { starterSkillNodes } from './skillNodes.js';
 
 export * from './effects.js';
 export * from './enemies.js';
 export * from './waves.js';
 export * from './stages.js';
+export * from './disciplines.js';
+export * from './skillNodes.js';
 
 export const starterContent: RawContent = {
   effects: starterEffects,
@@ -24,6 +28,9 @@ export const starterContent: RawContent = {
     retreatWaves: 1,
     pauseSeconds: 3,
   },
+  disciplines: starterDisciplines,
+  proficiencyCurve: starterProficiencyCurve,
+  skillNodes: starterSkillNodes,
 };
 
 /** Authoritative, pre-validated content instance for gameplay and testing. */

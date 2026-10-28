@@ -55,6 +55,9 @@ function makeCustomContent(overrides: {
     playerBaseOnHitEffects: defaultContent.playerBaseOnHitEffects,
     startingStageId: defaultContent.startingStageId,
     defeat: defaultContent.defeat,
+    disciplines: defaultContent.disciplines,
+    proficiencyCurve: defaultContent.proficiencyCurve,
+    skillNodes: defaultContent.skillNodes,
     raw: defaultContent.raw,
   };
 }
@@ -499,6 +502,9 @@ describe('Timed Effects System (M1-08)', () => {
       playerBaseOnHitEffects: defaultConfig.content.playerBaseOnHitEffects,
       startingStageId: defaultConfig.content.startingStageId,
       defeat: defaultConfig.content.defeat,
+      disciplines: defaultConfig.content.disciplines,
+      proficiencyCurve: defaultConfig.content.proficiencyCurve,
+      skillNodes: defaultConfig.content.skillNodes,
       raw: defaultConfig.content.raw,
     };
     const config: GameConfig = { ...defaultConfig, content: customContent };
