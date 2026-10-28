@@ -5,6 +5,14 @@ Read `docs/SRS.md` (v0.5) for requirements, `docs/decisions.md` for resolved des
 ## Stack
 TypeScript, Vite, Svelte, Vitest, Zod, localStorage. No backend, no game engine, no big-number library (wrap math in `core/num.ts` helpers).
 
+## Shell (read first)
+The shell is Windows PowerShell. Do NOT use bash tools: tail, head, grep, cat, wc, find, &&, 2>&1 | tail. Use instead:
+- search: Get-ChildItem src -Recurse -Filter *.ts | Select-String "text"
+- first/last lines: Select-Object -First N / -Last N
+- file contents: Get-Content path
+- chain commands with `;`
+Never create helper scripts outside the repo (Temp folders) to answer a question. If a command fails twice, stop and ask the owner.
+
 ## Layout
 ```
 src/core/         pure logic. NO imports from ui/, persistence/, DOM, window, localStorage, Date.now
