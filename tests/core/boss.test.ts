@@ -93,6 +93,7 @@ function makeTinyContent(options: {
     bossXpBonus: options.bossXpBonus ?? 0,
     minWavesBeforeBoss: options.minWavesBeforeBoss ?? 5,
     ...(options.unlocksStageId ? { unlocksStageId: options.unlocksStageId } : {}),
+    requirements: [],
   };
   return loadContent({
     effects: options.effects ?? [],
@@ -204,6 +205,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: 'test-boss',
       bossXpBonus: 100,
       minWavesBeforeBoss: 1,
+      requirements: [],
     };
     const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
 
@@ -333,6 +335,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: boss.id,
       bossXpBonus: 50,
       minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent = makeTinyContent({
       boss,
@@ -459,6 +462,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: boss.id,
       bossXpBonus: 50,
       minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent = makeTinyContent({
       boss,
@@ -511,6 +515,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: 'auto-boss',
       bossXpBonus: 50,
       minWavesBeforeBoss: 1,
+      requirements: [],
       unlocksStageId: 'auto-stage-2',
     };
     const stage2: StageDef = {
@@ -520,6 +525,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: 'auto-boss',
       bossXpBonus: 50,
       minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent = makeCustomContent({
       enemies: [boss],
@@ -611,6 +617,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: 'goblin-chief',
       bossXpBonus: 50,
       minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent = makeCustomContent({ enemies: [enemy], waves: [wave1, wave2], stages: [stage] });
 
@@ -662,6 +669,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: 'goblin-chief',
       bossXpBonus: 50,
       minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent = makeCustomContent({ enemies: [enemy], waves: [wave], stages: [stage] });
 
@@ -713,6 +721,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: 'damaging-boss',
       bossXpBonus: 50,
       minWavesBeforeBoss: 1,
+      requirements: [],
     };
     const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
 
@@ -788,6 +797,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: 'levelup-boss',
       bossXpBonus: 5000,
       minWavesBeforeBoss: 1,
+      requirements: [],
     };
     const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
 
@@ -869,6 +879,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: 'goblin-chief',
       bossXpBonus: 50,
       minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent = makeCustomContent({ enemies: [enemy], waves: [wave], stages: [stage] });
 
@@ -926,6 +937,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: 'stun-boss',
       bossXpBonus: 50,
       minWavesBeforeBoss: 1,
+      requirements: [],
     };
     const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
 
@@ -980,6 +992,7 @@ describe('M1-09: Boss Encounters and Stage Progression', () => {
       boss: 'split-boss',
       bossXpBonus: 50,
       minWavesBeforeBoss: 5,
+      requirements: [],
     };
     const customContent = makeCustomContent({ enemies: [boss], waves: [wave], stages: [stage] });
 
