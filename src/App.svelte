@@ -1,9 +1,17 @@
 <script lang="ts">
   import { gameStore, dispatchAction, setSpeed, setPaused, saveNow, resetAndClearError } from './ui/index.js';
-  import { deriveStats, xpToNextLevel, canChallengeBoss } from './core/index.js';
+  import { canChallengeBoss } from './core/index.js';
   import { defaultConfig } from './data/index.js';
+  import CharacterPanel from './ui/CharacterPanel.svelte';
+  import SkillTree from './ui/SkillTree.svelte';
+  import NodeDetail from './ui/NodeDetail.svelte';
+  import RespecButton from './ui/RespecButton.svelte';
+  import DisciplinePanel from './ui/DisciplinePanel.svelte';
+  import StageSelector from './ui/StageSelector.svelte';
   
   let showDebug = $state(false);
+  let selectedNodeId: string | null = null;
+  let selectedNode = $derived(selectedNodeId ? defaultConfig.content.skillNodes.get(selectedNodeId) ?? null : null);
   let timeSinceLastSave = $state(0);
   let showResetConfirm = $state(false);
   let showResetSaveConfirm = $state(false);
@@ -213,38 +221,16 @@
     </div>
   {/if}
 
-  <!-- Character Panel -->
-  <section class="panel">
-    <h2>Character</h2>
-    {#if $gameStore.state}
-      {@const char = $gameStore.state.character}
-      {@const stats = deriveStats($gameStore.state, defaultConfig)}
-      {@const xpNeeded = xpToNextLevel(char.level, defaultConfig.levelCurve)}
-      {@const currentHp = $gameStore.state.combat?.playerHp ?? char.currentHp}
-      
-      <div>Level: {char.level} | Skill Points: {char.skillPoints}</div>
-      <div>
-        XP: {char.xp} / {xpNeeded}
-        <div class="bar-row bar-xp">
-          <span class="bar-label">{char.xp} / {xpNeeded}</span>
-          <div class="bar-track">
-            <div class="bar-fill" style="width: {(char.xp / xpNeeded) * 100}%"></div>
-          </div>
-        </div>
-      </div>
-      <div>
-        HP: {currentHp.toFixed(0)} / {stats.maxHp.toFixed(0)}
-        <div class="bar-row bar-player-hp">
-          <span class="bar-label">{currentHp.toFixed(0)} / {stats.maxHp.toFixed(0)}</span>
-          <div class="bar-track">
-            <div class="bar-fill" style="width: {(currentHp / stats.maxHp) * 100}%"></div>
-          </div>
-        </div>
-      </div>
-      <div>Attack: {stats.attack.toFixed(1)} | Rate: {stats.attackRate.toFixed(2)}/s</div>
-      <div>Crit: {(stats.critChance * 100).toFixed(0)}% chance, {stats.critDamage.toFixed(1)}x damage</div>
-    {/if}
-  </section>
+  <CharacterPanel />
+  
+  <div class="skill-tree-row">
+    <SkillTree onSelect={(nodeId: string) => selectedNodeId = nodeId} />
+    <NodeDetail node={selectedNode} />
+  </div>
+  
+  <RespecButton />
+  <DisciplinePanel />
+  <StageSelector />
   
   <!-- Combat Panel -->
   {#if $gameStore.state.combat}
@@ -593,5 +579,15 @@
   
   input[type="checkbox"] {
     margin-right: var(--space-2);
+  }
+
+  .skill-tree-row {
+    display: flex;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+
+  .skill-tree-row > * {
+    flex: 1;
   }
 </style>

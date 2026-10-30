@@ -76,6 +76,17 @@
   --state-affordable: #D7D0B8; /* PLACEHOLDER: Cream frame + "+" marker (A10) */
   --state-owned: #FFC857; /* PLACEHOLDER: Gold + check marker (A10) */
   --state-requirement-unmet: #D94752; /* PLACEHOLDER: Blood + X or "!" marker (A10) */
+
+  /* --- Skill tree (M2-06) --- */
+  --skill-node-scale: 60; /* PLACEHOLDER: pixels per grid unit for node positions */
+  --skill-node-size: 24; /* PLACEHOLDER: node diameter in px */
+  --skill-line-width: 2; /* PLACEHOLDER: connector line stroke width */
+  --skill-tree-viewport-height: 420px; /* PLACEHOLDER: max height for skill tree scrollable container */
+
+  /* --- Branch colors for data branches (A11) --- */
+  --branch-center: var(--branch-arcana); /* PLACEHOLDER: Aether for center branch */
+  --branch-berserker: var(--branch-destruction); /* PLACEHOLDER: Ember for berserker branch */
+  --branch-paladin: var(--branch-nature); /* PLACEHOLDER: Wisp for paladin branch */
 }
 
 /* --- Utility: pixel art --- */
