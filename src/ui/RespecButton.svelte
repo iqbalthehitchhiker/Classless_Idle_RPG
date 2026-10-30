@@ -2,13 +2,13 @@
   import { gameStore, dispatchAction } from './index.js';
   import { canRespec } from '../core/index.js';
 
-  let showConfirm = false;
+  let showConfirm = $state(false);
 
-  let state = $derived($gameStore.state);
-  let respecCheck = $derived(canRespec(state));
+  let gameState = $derived($gameStore.state);
+  let respecCheck = $derived(canRespec(gameState));
   let disabled = $derived(!respecCheck.ok);
   let reason = $derived(
-    state.activeActivity !== null
+    gameState.activeActivity !== null
       ? 'Stop combat to respec'
       : respecCheck.ok ? '' : respecCheck.reason,
   );

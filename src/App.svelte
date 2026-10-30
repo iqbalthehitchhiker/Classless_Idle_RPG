@@ -10,7 +10,7 @@
   import StageSelector from './ui/StageSelector.svelte';
   
   let showDebug = $state(false);
-  let selectedNodeId: string | null = null;
+  let selectedNodeId = $state<string | null>(null);
   let selectedNode = $derived(selectedNodeId ? defaultConfig.content.skillNodes.get(selectedNodeId) ?? null : null);
   let timeSinceLastSave = $state(0);
   let showResetConfirm = $state(false);
@@ -432,36 +432,18 @@
     overflow: hidden;
   }
   
-  .bar-player-hp .bar-track {
-    width: var(--bar-player-hp-width);
-    height: var(--bar-player-hp-height);
-  }
-  
   .bar-enemy-hp .bar-track {
     width: var(--bar-enemy-hp-width);
     height: var(--bar-enemy-hp-height);
   }
 
-  .bar-xp .bar-track {
-    width: var(--bar-xp-width);
-    height: var(--bar-xp-height);
-  }
-  
   .bar-fill {
     height: 100%;
     transition: width 150ms;
   }
-  
-  .bar-player-hp .bar-fill {
-    background: var(--bar-player-hp-fill);
-  }
-  
+
   .bar-enemy-hp .bar-fill {
     background: var(--bar-enemy-hp-fill);
-  }
-
-  .bar-xp .bar-fill {
-    background: var(--bar-xp-fill);
   }
   
   .enemy {
@@ -587,7 +569,5 @@
     margin-bottom: var(--space-4);
   }
 
-  .skill-tree-row > * {
-    flex: 1;
-  }
+
 </style>

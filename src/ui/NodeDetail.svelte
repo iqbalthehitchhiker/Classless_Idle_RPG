@@ -115,6 +115,7 @@
     padding: var(--space-4);
     margin-bottom: var(--space-4);
     border-radius: var(--radius);
+    flex: 1;
   }
 
   h2 {
