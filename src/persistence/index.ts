@@ -15,5 +15,5 @@ The rest of the package is a re-export barrel so consumers can import from
 `../persistence/index.js`.
 */
 
-export { SAVE_VERSION, type SaveFile } from './schema.js';
+export { SAVE_VERSION, type SaveFile, migrate } from './schema.js';
 export { serialize, deserialize, loadGame, saveGame, resetGame } from './storage.js';

@@ -5,6 +5,8 @@
  */
 import { createInitialState, advance, dispatch, canChallengeBoss, deriveStats, canStartStage } from '../src/core/index.js';
 import { defaultConfig } from '../src/data/index.js';
+import { serialize, deserialize } from '../src/persistence/storage.js';
+import { migrate } from '../src/persistence/schema.js';
 import type { LogEntry } from '../src/core/types.js';
 
 const args = process.argv.slice(2);
@@ -126,9 +128,7 @@ if (stoppedAtTime !== null && levelAtStop !== null && xpAtStop !== null && clear
   console.log(`\nProgress preserved across stop/start: ${allPreserved ? 'YES' : 'NO'} (level: ${levelPreserved}, xp: ${xpPreserved}, clearedStages: ${clearedPreserved})`);
 }
 
-// M1-13: Round-trip test
-import { serialize, deserialize } from '../src/persistence/storage.js';
-
+// M1-13 + M2-05: Round-trip test
 const serialized = serialize(state);
 const deserialized = deserialize(serialized, defaultConfig);
 
@@ -161,6 +161,27 @@ if (!deserialized.ok) {
   const s1StageId = s1.combat?.stageId ?? null;
   const s2StageId = s2.combat?.stageId ?? null;
   if (s1StageId !== s2StageId) diffFields.push('stageId');
+
+  if (JSON.stringify(s1.purchasedNodes) !== JSON.stringify(s2.purchasedNodes)) {
+    diffFields.push('purchasedNodes');
+  }
+
+  if (JSON.stringify(s1.proficiency) !== JSON.stringify(s2.proficiency)) {
+    diffFields.push('proficiency');
+  }
+
+  const activityParamsOf = (s: typeof s1) => {
+    if (s.activeActivity === 'combat') {
+      return { stageId: s.combat?.stageId ?? null };
+    }
+    if (s.activeActivity === 'training') {
+      return { disciplineId: s.trainingDisciplineId ?? null };
+    }
+    return null;
+  };
+  if (JSON.stringify(activityParamsOf(s1)) !== JSON.stringify(activityParamsOf(s2))) {
+    diffFields.push('activityParams');
+  }
 
   if (diffFields.length === 0) {
     console.log('Round trip: OK');
@@ -326,3 +347,45 @@ if (stage2Result.activeActivity === 'combat') {
 } else {
   console.log('FAILED: Stage-2 should have started');
 }
+
+// ============================================================================
+// M2-05: Save v2 Migration
+// ============================================================================
+
+console.log('\n=== M2-05: Save v2 Migration ===');
+
+const v1Save = {
+  version: 1,
+  savedAt: 1000,
+  state: {
+    character: {
+      level: state.character.level,
+      xp: state.character.xp,
+      skillPoints: state.character.skillPoints,
+      currentHp: state.character.currentHp,
+    },
+    unlockedStages: state.unlockedStages,
+    clearedStages: state.clearedStages,
+    settings: state.settings,
+    elapsedMs: state.elapsedMs,
+    rng: state.rng,
+    log: state.log,
+    activeActivity: state.activeActivity ?? null,
+    stageId: state.combat?.stageId ?? null,
+  },
+} as unknown;
+
+const migrated = migrate(v1Save, defaultConfig);
+const migrationOk =
+  migrated.version === 2 &&
+  migrated.state.purchasedNodes.length === 0 &&
+  migrated.state.activeActivity === state.activeActivity &&
+  JSON.stringify(migrated.state.activityParams) ===
+    JSON.stringify({ stageId: state.combat?.stageId ?? null }) &&
+  [...defaultConfig.content.disciplines.values()].every(
+    (d) =>
+      migrated.state.proficiency[d.id]?.level === 1 &&
+      migrated.state.proficiency[d.id]?.xp === 0,
+  );
+
+console.log(`Migration: v1 -> v2 ${migrationOk ? 'OK' : 'FAILED'}`);
