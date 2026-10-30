@@ -47,7 +47,7 @@ describe('checkRequirements', () => {
     const state = createInitialState(1, defaultConfig);
     const stateWithProficiency: GameState = {
       ...state,
-      proficiency: { swordsmanship: 5, fortitude: 2 },
+      proficiency: { swordsmanship: { xp: 0, level: 5 }, fortitude: { xp: 0, level: 2 } },
     };
     const requirements: Requirement[] = [
       { kind: 'proficiency', disciplineId: 'swordsmanship', level: 3 },
@@ -60,7 +60,7 @@ describe('checkRequirements', () => {
     const state = createInitialState(1, defaultConfig);
     const stateWithProficiency: GameState = {
       ...state,
-      proficiency: { swordsmanship: 1, fortitude: 0 },
+      proficiency: { swordsmanship: { xp: 0, level: 1 }, fortitude: { xp: 0, level: 0 } },
     };
     const requirements: Requirement[] = [
       { kind: 'proficiency', disciplineId: 'swordsmanship', level: 3 },
@@ -136,7 +136,7 @@ describe('checkRequirements', () => {
     const stateLevel2: GameState = {
       ...state,
       character: { ...state.character, level: 2 },
-      proficiency: { swordsmanship: 1, fortitude: 0 },
+      proficiency: { swordsmanship: { xp: 0, level: 1 }, fortitude: { xp: 0, level: 0 } },
     };
     const requirements: Requirement[] = [
       { kind: 'level', level: 5 },
@@ -158,7 +158,7 @@ describe('checkRequirements', () => {
     const stateLevel3: GameState = {
       ...state,
       character: { ...state.character, level: 3 },
-      proficiency: { swordsmanship: 2, fortitude: 1 },
+      proficiency: { swordsmanship: { xp: 0, level: 2 }, fortitude: { xp: 0, level: 1 } },
     };
     const requirements: Requirement[] = [
       { kind: 'level', level: 10 },

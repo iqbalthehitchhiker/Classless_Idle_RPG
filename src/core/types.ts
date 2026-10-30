@@ -12,6 +12,7 @@ import type { RngState } from './rng.js';
 import type { Content } from '../data/schemas.js';
 import type { CharacterStatsData } from '../data/character.js';
 import type { LevelCurveConfig } from '../data/levelCurve.js';
+import type { TrainingConfig } from '../data/training.js';
 
 // ---------------------------------------------------------------------------
 // Character
@@ -41,6 +42,7 @@ export interface GameConfig {
   readonly content: Content;
   readonly character: CharacterStatsData;
   readonly levelCurve: LevelCurveConfig;
+  readonly training: TrainingConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +111,7 @@ export interface LogEntry {
 // Top-level state
 // ---------------------------------------------------------------------------
 
-export type ActivityType = 'combat';
+export type ActivityType = 'combat' | 'training';
 
 export interface GameState {
   readonly version: 1;
@@ -117,6 +119,7 @@ export interface GameState {
   readonly character: CharacterState;
   readonly combat: CombatState | null;
   readonly activeActivity: ActivityType | null;
+  readonly trainingDisciplineId: string | null;    // discipline being trained while activeActivity === 'training'
   readonly unlockedStages: readonly string[];
   readonly clearedStages: readonly string[];
   readonly settings: {
@@ -127,9 +130,9 @@ export interface GameState {
   readonly elapsedMs: number;         // game clock in integer milliseconds, advanced by advance()
   readonly log: readonly LogEntry[];  // newest entries appended, capped at MAX_LOG_ENTRIES
   readonly purchasedNodes: readonly string[]; // M2-02: purchased skill tree nodes
-  // M2-03: Placeholder proficiency state. M2-04 replaces this with real proficiency and XP progress.
-  // Each discipline starts at level 0 by default. Built from content in createInitialState.
-  readonly proficiency?: Record<string, number>;
+  /// Proficiency state: { xp, level } per discipline, built from content in createInitialState.
+  /// Each discipline starts at level 1, xp 0.
+  readonly proficiency: Record<string, { xp: number; level: number }>;
 }
 
 // ---------------------------------------------------------------------------

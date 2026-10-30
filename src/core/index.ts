@@ -16,6 +16,7 @@ export { appendLog } from './log.js';
 export { deriveStats, deriveStatsForLevel, deriveOnHitEffects, canPurchaseNode, canRespec, canStartStage } from './stats.js';
 export type { DerivedStats } from './stats.js';
 export { awardXp, awardCharacterXp, xpToNextLevel } from './level.js';
+export { awardProficiency } from './proficiency.js';
 export {
   stepCombat,
   startCombat,

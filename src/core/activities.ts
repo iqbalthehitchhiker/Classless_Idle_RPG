@@ -6,9 +6,11 @@
 
 import type { Activity } from './activity.js';
 import { combatActivity } from './combat/activity.js';
+import { trainingActivity } from './training/activity.js';
 
 export const activities = {
   combat: combatActivity,
+  training: trainingActivity,
 } as const;
 
 /**

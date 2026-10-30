@@ -41,8 +41,7 @@ export function checkRequirements(
         });
       }
     } else if (req.kind === 'proficiency') {
-      // M2-04 will add real proficiency state. For now, use the placeholder.
-      const proficiencyLevel = state.proficiency?.[req.disciplineId] ?? 0;
+      const proficiencyLevel = state.proficiency[req.disciplineId]?.level ?? 0;
       if (proficiencyLevel < req.level) {
         const discipline = config.content.disciplines.get(req.disciplineId);
         const disciplineName = discipline?.name ?? req.disciplineId;

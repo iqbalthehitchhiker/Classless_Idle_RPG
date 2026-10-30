@@ -39,11 +39,9 @@ export function createInitialState(
 ): GameState {
   const startingLevel = config.character.startingLevel;
   
-  // M2-03: Build proficiency placeholder from content (every discipline at level 0).
-  // M2-04 will replace this with real proficiency and XP progress.
-  const proficiency: Record<string, number> = {};
+  const proficiency: Record<string, { xp: number; level: number }> = {};
   for (const discipline of config.content.disciplines.values()) {
-    proficiency[discipline.id] = 0;
+    proficiency[discipline.id] = { xp: 0, level: 1 };
   }
   
   return {
@@ -58,6 +56,7 @@ export function createInitialState(
     },
     combat: null,
     activeActivity: null,
+    trainingDisciplineId: null,
     unlockedStages: [config.content.startingStageId],
     clearedStages: [],
     settings: {

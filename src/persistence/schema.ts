@@ -63,7 +63,7 @@ export const saveFileSchema = z
           .max(10000)
           .readonly(),
         activeActivity: z
-          .enum(['combat'])
+          .enum(['combat', 'training'])
           .nullable()
           .default(null),
         stageId: z.string().min(1).nullable().default(null),

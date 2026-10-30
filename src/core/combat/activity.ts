@@ -8,6 +8,7 @@ import type { Activity } from '../activity.js';
 import type { GameConfig, GameState } from '../types.js';
 import { startCombat as startCombatImpl, stepCombat } from './engine.js';
 import { canStartStage } from '../stats.js';
+import { awardProficiency } from '../proficiency.js';
 
 export const combatActivity: Activity = {
   id: 'combat',
@@ -40,7 +41,21 @@ export const combatActivity: Activity = {
     config: GameConfig,
   ): GameState {
     const dtSeconds = dtMs / 1000;
-    return stepCombat(state, dtSeconds, config);
+
+    // D31: combat trickle — Swordsmanship proficiency while combat is active
+    // (phase active or boss, not recovering). Fortitude comes only from training.
+    let stateWithProficiency = state;
+    if (
+      state.combat !== null
+      && (state.combat.phase.type === 'active' || state.combat.phase.type === 'boss')
+    ) {
+      const combatGain = config.training.combatProficiencyFraction
+        * config.training.proficiencyPerSecond
+        * dtSeconds;
+      stateWithProficiency = awardProficiency(state, 'swordsmanship', combatGain, config);
+    }
+
+    return stepCombat(stateWithProficiency, dtSeconds, config);
   },
 
   stop(state: GameState): GameState {

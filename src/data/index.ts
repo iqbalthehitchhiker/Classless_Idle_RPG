@@ -9,10 +9,12 @@
 import type { GameConfig } from '../core/types.js';
 import { characterStats } from './character.js';
 import { levelCurve } from './levelCurve.js';
+import { trainingConfig } from './training.js';
 import { content } from './content/index.js';
 
 export * from './character.js';
 export * from './levelCurve.js';
+export * from './training.js';
 export * from './schemas.js';
 export * from './content/index.js';
 
@@ -25,4 +27,5 @@ export const defaultConfig: GameConfig = {
   content,
   character: characterStats,
   levelCurve,
+  training: trainingConfig,
 };
